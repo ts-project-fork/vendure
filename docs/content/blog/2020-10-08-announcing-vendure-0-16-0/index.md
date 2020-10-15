@@ -284,19 +284,29 @@ Due to the new features described above, there are some **major breaking changes
    // Assuming the ID of the default Channel is 1.
    // If you are using a UUID strategy, replace 1 with 
    // the ID of the default channel.
-    await queryRunner.query(
-      'INSERT INTO `customer_channels_channel` (customerId, channelId) SELECT id, 1 FROM `customer`',
-      undefined,
-    );
+   await queryRunner.query(
+     "INSERT INTO `customer_channels_channel` (customerId, channelId) SELECT id, 1 FROM `customer`",
+     undefined,
+   );
+   // The Order "Fulfilled" state is now named "Delivered"
+   await queryRunner.query("UPDATE `order` SET `state`='Delivered' WHERE `state`='Fulfilled'", undefined);   
+   
+   // Find this line and add the `DEFAULT "Delivered"` part
+   await queryRunner.query("ALTER TABLE `fulfillment` ADD `state` varchar(255) NOT NULL DEFAULT 'Delivered'", undefined);
    ```
+
    
    or if using Postgres:
-    ```TypeScript
-     await queryRunner.query(
-       'INSERT INTO "customer_channels_channel" ("customerId", "channelId") SELECT id, 1 FROM "customer"',
-       undefined,
-     );
-    ```
+   ```TypeScript
+   await queryRunner.query(
+     'INSERT INTO "customer_channels_channel" ("customerId", "channelId") SELECT id, 1 FROM "customer"',
+     undefined,
+   );
+   await queryRunner.query(`UPDATE "order" SET "state"='Delivered' WHERE "state"='Fulfilled'`, undefined);
+   
+   // Find this line and add the `DEFAULT 'Delivered'` part
+   await queryRunner.query(`ALTER TABLE "fulfillment" ADD "state" character varying NOT NULL DEFAULT 'Delivered'`, undefined);
+   ```
    
 3. **IMPORTANT** test the migration first on data you are prepared to lose to ensure that it works as expected. Do not run on production data without testing.
 
