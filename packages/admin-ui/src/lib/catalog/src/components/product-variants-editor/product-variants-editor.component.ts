@@ -113,7 +113,7 @@ export class ProductVariantsEditorComponent implements OnInit, DeactivateAware {
         this.variants = groups.length
             ? generateAllCombinations(groups).map((options, i) => ({
                   isDefault: this.product.variants.length === 1 && i === 0,
-                  id: options.map(o => o.name).join('|'),
+                  id: this.generateOptionsId(options),
                   options,
               }))
             : [{ isDefault: true, id: DEFAULT_VARIANT_CODE, options: [] }];
@@ -148,7 +148,7 @@ export class ProductVariantsEditorComponent implements OnInit, DeactivateAware {
             variant.options.map(o => o.name).filter(name => v.options.map(o => o.name).includes(name)),
         );
         if (variantsWithSimilarOptions.length) {
-            return this.variantFormValues[variantsWithSimilarOptions[0].options.map(o => o.name).join('|')];
+            return this.variantFormValues[this.generateOptionsId(variantsWithSimilarOptions[0].options)];
         }
         return {
             sku: '',
@@ -376,7 +376,7 @@ export class ProductVariantsEditorComponent implements OnInit, DeactivateAware {
         variants: GetProductVariantOptions.Variants[],
     ): { [id: string]: VariantInfo } {
         return variants.reduce((all, v) => {
-            const id = v.options.length ? v.options.map(o => o.name).join('|') : DEFAULT_VARIANT_CODE;
+            const id = v.options.length ? this.generateOptionsId(v.options) : DEFAULT_VARIANT_CODE;
             return {
                 ...all,
                 [id]: {
@@ -390,5 +390,12 @@ export class ProductVariantsEditorComponent implements OnInit, DeactivateAware {
                 },
             };
         }, {});
+    }
+
+    private generateOptionsId(options: GeneratedVariant['options']): string {
+        return options
+            .map(o => o.name)
+            .sort()
+            .join('|');
     }
 }

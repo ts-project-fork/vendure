@@ -1940,6 +1940,7 @@ export type NativeAuthStrategyError = ErrorResult & {
 export type InvalidCredentialsError = ErrorResult & {
     errorCode: ErrorCode;
     message: Scalars['String'];
+    authenticationError: Scalars['String'];
 };
 
 /** Returned if there is an error in transitioning the Order state */

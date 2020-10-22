@@ -1940,6 +1940,7 @@ export type NativeAuthStrategyError = ErrorResult & {
 export type InvalidCredentialsError = ErrorResult & {
     errorCode: ErrorCode;
     message: Scalars['String'];
+    authenticationError: Scalars['String'];
 };
 
 /** Returned if there is an error in transitioning the Order state */
@@ -3925,7 +3926,9 @@ export type AuthenticateMutationVariables = Exact<{
 }>;
 
 export type AuthenticateMutation = {
-    authenticate: CurrentUserFragment | Pick<InvalidCredentialsError, 'errorCode' | 'message'>;
+    authenticate:
+        | CurrentUserFragment
+        | Pick<InvalidCredentialsError, 'authenticationError' | 'errorCode' | 'message'>;
 };
 
 export type GetCustomersQueryVariables = Exact<{ [key: string]: never }>;
@@ -5649,9 +5652,9 @@ export namespace Authenticate {
     export type Variables = AuthenticateMutationVariables;
     export type Mutation = AuthenticateMutation;
     export type Authenticate = NonNullable<AuthenticateMutation['authenticate']>;
-    export type ErrorResultInlineFragment = DiscriminateUnion<
+    export type InvalidCredentialsErrorInlineFragment = DiscriminateUnion<
         NonNullable<AuthenticateMutation['authenticate']>,
-        { __typename?: 'ErrorResult' }
+        { __typename?: 'InvalidCredentialsError' }
     >;
 }
 
