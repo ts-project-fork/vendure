@@ -2,12 +2,17 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker';
-import { BaseDetailComponent } from '@vendure/admin-ui/core';
-import { Country, CreateCountryInput, LanguageCode, UpdateCountryInput } from '@vendure/admin-ui/core';
-import { createUpdatedTranslatable } from '@vendure/admin-ui/core';
-import { NotificationService } from '@vendure/admin-ui/core';
-import { DataService } from '@vendure/admin-ui/core';
-import { ServerConfigService } from '@vendure/admin-ui/core';
+import {
+    BaseDetailComponent,
+    Country,
+    CreateCountryInput,
+    createUpdatedTranslatable,
+    DataService,
+    LanguageCode,
+    NotificationService,
+    ServerConfigService,
+    UpdateCountryInput,
+} from '@vendure/admin-ui/core';
 import { combineLatest, Observable } from 'rxjs';
 import { mergeMap, take } from 'rxjs/operators';
 
@@ -16,7 +21,8 @@ import { mergeMap, take } from 'rxjs/operators';
     templateUrl: './country-detail.component.html',
     styleUrls: ['./country-detail.component.scss'],
 })
-export class CountryDetailComponent extends BaseDetailComponent<Country.Fragment>
+export class CountryDetailComponent
+    extends BaseDetailComponent<Country.Fragment>
     implements OnInit, OnDestroy {
     country$: Observable<Country.Fragment>;
     detailForm: FormGroup;
@@ -95,6 +101,10 @@ export class CountryDetailComponent extends BaseDetailComponent<Country.Fragment
                         translatable: country,
                         updatedFields: formValue,
                         languageCode,
+                        defaultTranslation: {
+                            name: formValue.name,
+                            languageCode,
+                        },
                     });
                     return this.dataService.settings.updateCountry(input);
                 }),
