@@ -8,6 +8,7 @@ import path from 'path';
 import { initialData } from '../../../e2e-common/e2e-initial-data';
 import { testConfig, TEST_SETUP_TIMEOUT_MS } from '../../../e2e-common/test-config';
 
+import { PRODUCT_WITH_OPTIONS_FRAGMENT } from './graphql/fragments';
 import {
     AddOptionGroupToProduct,
     CreateProduct,
@@ -41,7 +42,6 @@ import {
     GET_PRODUCT_LIST,
     GET_PRODUCT_SIMPLE,
     GET_PRODUCT_WITH_VARIANTS,
-    PRODUCT_WITH_OPTIONS_FRAGMENT,
     UPDATE_PRODUCT,
     UPDATE_PRODUCT_VARIANTS,
 } from './graphql/shared-definitions';
@@ -1070,8 +1070,8 @@ describe('Product resolver', () => {
                 });
 
                 expect(createProductVariants.length).toBe(1);
-                expect(createProductVariants[0]!.options.map(o => o.code)).toEqual(
-                    deletedVariant.options.map(o => o.code),
+                expect(createProductVariants[0]!.options.map(o => o.code).sort()).toEqual(
+                    deletedVariant.options.map(o => o.code).sort(),
                 );
             });
         });

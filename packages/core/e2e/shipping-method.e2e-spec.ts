@@ -11,6 +11,7 @@ import path from 'path';
 import { initialData } from '../../../e2e-common/e2e-initial-data';
 import { testConfig, TEST_SETUP_TIMEOUT_MS } from '../../../e2e-common/test-config';
 
+import { SHIPPING_METHOD_FRAGMENT } from './graphql/fragments';
 import {
     CreateShippingMethod,
     DeleteShippingMethod,
@@ -24,6 +25,7 @@ import {
     TestShippingMethod,
     UpdateShippingMethod,
 } from './graphql/generated-e2e-admin-types';
+import { CREATE_SHIPPING_METHOD } from './graphql/shared-definitions';
 
 const TEST_METADATA = {
     foo: 'bar',
@@ -34,7 +36,7 @@ const calculatorWithMetadata = new ShippingCalculator({
     code: 'calculator-with-metadata',
     description: [{ languageCode: LanguageCode.en, value: 'Has metadata' }],
     args: {},
-    calculate: order => {
+    calculate: () => {
         return {
             price: 100,
             priceWithTax: 100,
@@ -152,7 +154,6 @@ describe('ShippingMethod resolver', () => {
         >(CREATE_SHIPPING_METHOD, {
             input: {
                 code: 'new-method',
-                description: 'new method',
                 checker: {
                     code: defaultShippingEligibilityChecker.code,
                     arguments: [
@@ -166,13 +167,15 @@ describe('ShippingMethod resolver', () => {
                     code: calculatorWithMetadata.code,
                     arguments: [],
                 },
+                translations: [{ languageCode: LanguageCode.en, name: 'new method', description: '' }],
             },
         });
 
         expect(createShippingMethod).toEqual({
             id: 'T_3',
             code: 'new-method',
-            description: 'new method',
+            name: 'new method',
+            description: '',
             calculator: {
                 code: 'calculator-with-metadata',
             },
@@ -236,7 +239,8 @@ describe('ShippingMethod resolver', () => {
         expect(testEligibleShippingMethods).toEqual([
             {
                 id: 'T_3',
-                description: 'new method',
+                name: 'new method',
+                description: '',
                 price: 100,
                 priceWithTax: 100,
                 metadata: TEST_METADATA,
@@ -244,14 +248,16 @@ describe('ShippingMethod resolver', () => {
 
             {
                 id: 'T_1',
-                description: 'Standard Shipping',
+                name: 'Standard Shipping',
+                description: '',
                 price: 500,
                 priceWithTax: 500,
                 metadata: null,
             },
             {
                 id: 'T_2',
-                description: 'Express Shipping',
+                name: 'Express Shipping',
+                description: '',
                 price: 1000,
                 priceWithTax: 1000,
                 metadata: null,
@@ -266,11 +272,11 @@ describe('ShippingMethod resolver', () => {
         >(UPDATE_SHIPPING_METHOD, {
             input: {
                 id: 'T_3',
-                description: 'changed method',
+                translations: [{ languageCode: LanguageCode.en, name: 'changed method', description: '' }],
             },
         });
 
-        expect(updateShippingMethod.description).toBe('changed method');
+        expect(updateShippingMethod.name).toBe('changed method');
     });
 
     it('deleteShippingMethod', async () => {
@@ -294,20 +300,6 @@ describe('ShippingMethod resolver', () => {
     });
 });
 
-const SHIPPING_METHOD_FRAGMENT = gql`
-    fragment ShippingMethod on ShippingMethod {
-        id
-        code
-        description
-        calculator {
-            code
-        }
-        checker {
-            code
-        }
-    }
-`;
-
 const GET_SHIPPING_METHOD_LIST = gql`
     query GetShippingMethodList {
         shippingMethods {
@@ -323,15 +315,6 @@ const GET_SHIPPING_METHOD_LIST = gql`
 const GET_SHIPPING_METHOD = gql`
     query GetShippingMethod($id: ID!) {
         shippingMethod(id: $id) {
-            ...ShippingMethod
-        }
-    }
-    ${SHIPPING_METHOD_FRAGMENT}
-`;
-
-const CREATE_SHIPPING_METHOD = gql`
-    mutation CreateShippingMethod($input: CreateShippingMethodInput!) {
-        createShippingMethod(input: $input) {
             ...ShippingMethod
         }
     }
@@ -405,6 +388,7 @@ export const TEST_ELIGIBLE_SHIPPING_METHODS = gql`
     query TestEligibleMethods($input: TestEligibleShippingMethodsInput!) {
         testEligibleShippingMethods(input: $input) {
             id
+            name
             description
             price
             priceWithTax

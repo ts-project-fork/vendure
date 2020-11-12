@@ -3,6 +3,7 @@ import {
     CreateProductVariantInput,
     DeletionResponse,
     DeletionResult,
+    GlobalFlag,
     UpdateProductVariantInput,
 } from '@vendure/common/lib/generated-types';
 import { ID, PaginatedList } from '@vendure/common/lib/shared-types';
@@ -189,6 +190,44 @@ export class ProductVariantService {
         return translateDeep(product, ctx.languageCode);
     }
 
+    /**
+     * @description
+     * Returns the number of saleable units of the ProductVariant, i.e. how many are available
+     * for purchase by Customers.
+     */
+    async getSaleableStockLevel(ctx: RequestContext, variant: ProductVariant): Promise<number> {
+        const { outOfStockThreshold, trackInventory } = await this.globalSettingsService.getSettings(ctx);
+        const inventoryNotTracked =
+            variant.trackInventory === GlobalFlag.FALSE ||
+            (variant.trackInventory === GlobalFlag.INHERIT && trackInventory === false);
+        if (inventoryNotTracked) {
+            return Number.MAX_SAFE_INTEGER;
+        }
+
+        const effectiveOutOfStockThreshold = variant.useGlobalOutOfStockThreshold
+            ? outOfStockThreshold
+            : variant.outOfStockThreshold;
+
+        return variant.stockOnHand - variant.stockAllocated - effectiveOutOfStockThreshold;
+    }
+
+    /**
+     * @description
+     * Returns the number of fulfillable units of the ProductVariant, equivalent to stockOnHand
+     * for those variants which are tracking inventory.
+     */
+    async getFulfillableStockLevel(ctx: RequestContext, variant: ProductVariant): Promise<number> {
+        const { outOfStockThreshold, trackInventory } = await this.globalSettingsService.getSettings(ctx);
+        const inventoryNotTracked =
+            variant.trackInventory === GlobalFlag.FALSE ||
+            (variant.trackInventory === GlobalFlag.INHERIT && trackInventory === false);
+        if (inventoryNotTracked) {
+            return Number.MAX_SAFE_INTEGER;
+        }
+
+        return variant.stockOnHand;
+    }
+
     async create(
         ctx: RequestContext,
         input: CreateProductVariantInput[],
@@ -243,11 +282,6 @@ export class ProductVariantService {
                 }
                 if (input.facetValueIds) {
                     variant.facetValues = await this.facetValueService.findByIds(ctx, input.facetValueIds);
-                }
-                if (input.trackInventory == null) {
-                    variant.trackInventory = (
-                        await this.globalSettingsService.getSettings(ctx)
-                    ).trackInventory;
                 }
                 variant.product = { id: input.productId } as any;
                 variant.taxCategory = { id: input.taxCategoryId } as any;
@@ -365,7 +399,7 @@ export class ProductVariantService {
         }
         const { taxZoneStrategy } = this.configService.taxOptions;
         const zones = this.zoneService.findAll(ctx);
-        const activeTaxZone = taxZoneStrategy.determineTaxZone(zones, ctx.channel);
+        const activeTaxZone = taxZoneStrategy.determineTaxZone(ctx, zones, ctx.channel);
         if (!activeTaxZone) {
             throw new InternalServerError(`error.no-active-tax-zone`);
         }

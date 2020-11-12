@@ -9,6 +9,7 @@ import {
 
 import { ID } from '../../../../common/lib/shared-types';
 import { RequestContext } from '../../api/common/request-context';
+import { ConfigService } from '../../config/config.service';
 import { OrderItem } from '../../entity/order-item/order-item.entity';
 import { OrderLine } from '../../entity/order-line/order-line.entity';
 import { Order } from '../../entity/order/order.entity';
@@ -17,7 +18,10 @@ import { ShippingMethod } from '../../entity/shipping-method/shipping-method.ent
 import { OrderCalculator } from '../helpers/order-calculator/order-calculator';
 import { ShippingCalculator } from '../helpers/shipping-calculator/shipping-calculator';
 import { ShippingConfiguration } from '../helpers/shipping-configuration/shipping-configuration';
+import { translateDeep } from '../helpers/utils/translate-entity';
 import { TransactionalConnection } from '../transaction/transactional-connection';
+
+import { ProductVariantService } from './product-variant.service';
 
 /**
  * This service is responsible for creating temporary mock Orders against which tests can be run, such as
@@ -30,6 +34,8 @@ export class OrderTestingService {
         private orderCalculator: OrderCalculator,
         private shippingCalculator: ShippingCalculator,
         private shippingConfiguration: ShippingConfiguration,
+        private configService: ConfigService,
+        private productVariantService: ProductVariantService,
     ) {}
 
     /**
@@ -45,14 +51,11 @@ export class OrderTestingService {
             calculator: this.shippingConfiguration.parseCalculatorInput(input.calculator),
         });
         const mockOrder = await this.buildMockOrder(ctx, input.shippingAddress, input.lines);
-        const eligible = await shippingMethod.test(mockOrder);
-        const result = eligible ? await shippingMethod.apply(mockOrder) : undefined;
+        const eligible = await shippingMethod.test(ctx, mockOrder);
+        const result = eligible ? await shippingMethod.apply(ctx, mockOrder) : undefined;
         return {
             eligible,
-            quote: result && {
-                ...result,
-                description: shippingMethod.description,
-            },
+            quote: result,
         };
     }
 
@@ -66,13 +69,19 @@ export class OrderTestingService {
     ): Promise<ShippingMethodQuote[]> {
         const mockOrder = await this.buildMockOrder(ctx, input.shippingAddress, input.lines);
         const eligibleMethods = await this.shippingCalculator.getEligibleShippingMethods(ctx, mockOrder);
-        return eligibleMethods.map(result => ({
-            id: result.method.id,
-            price: result.result.price,
-            priceWithTax: result.result.priceWithTax,
-            description: result.method.description,
-            metadata: result.result.metadata,
-        }));
+        return eligibleMethods
+            .map(result => {
+                translateDeep(result.method, ctx.languageCode);
+                return result;
+            })
+            .map(result => ({
+                id: result.method.id,
+                price: result.result.price,
+                priceWithTax: result.result.priceWithTax,
+                name: result.method.name,
+                description: result.method.description,
+                metadata: result.result.metadata,
+            }));
     }
 
     private async buildMockOrder(
@@ -80,6 +89,7 @@ export class OrderTestingService {
         shippingAddress: CreateAddressInput,
         lines: Array<{ productVariantId: ID; quantity: number }>,
     ): Promise<Order> {
+        const { priceCalculationStrategy } = this.configService.orderOptions;
         const mockOrder = new Order({
             lines: [],
         });
@@ -91,6 +101,7 @@ export class OrderTestingService {
                 line.productVariantId,
                 { relations: ['taxCategory'] },
             );
+            this.productVariantService.applyChannelPriceAndTax(productVariant, ctx);
             const orderLine = new OrderLine({
                 productVariant,
                 items: [],
@@ -98,12 +109,19 @@ export class OrderTestingService {
             });
             mockOrder.lines.push(orderLine);
 
+            const { price, priceIncludesTax } = await priceCalculationStrategy.calculateUnitPrice(
+                ctx,
+                productVariant,
+                orderLine.customFields || {},
+            );
+            const taxRate = productVariant.taxRateApplied;
+            const unitPrice = priceIncludesTax ? taxRate.netPriceOf(price) : price;
+
             for (let i = 0; i < line.quantity; i++) {
                 const orderItem = new OrderItem({
-                    unitPrice: productVariant.price,
+                    unitPrice,
+                    taxRate: taxRate.value,
                     pendingAdjustments: [],
-                    unitPriceIncludesTax: productVariant.priceIncludesTax,
-                    taxRate: productVariant.priceIncludesTax ? productVariant.taxRateApplied.value : 0,
                 });
                 orderLine.items.push(orderItem);
             }

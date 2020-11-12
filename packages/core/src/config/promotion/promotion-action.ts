@@ -1,5 +1,6 @@
 import { ConfigArg } from '@vendure/common/lib/generated-types';
 
+import { RequestContext } from '../../api/common/request-context';
 import {
     ConfigArgs,
     ConfigArgValues,
@@ -19,6 +20,7 @@ import { Order } from '../../entity/order/order.entity';
  * @docsPage promotion-action
  */
 export type ExecutePromotionItemActionFn<T extends ConfigArgs> = (
+    ctx: RequestContext,
     orderItem: OrderItem,
     orderLine: OrderLine,
     args: ConfigArgValues<T>,
@@ -33,6 +35,7 @@ export type ExecutePromotionItemActionFn<T extends ConfigArgs> = (
  * @docsPage promotion-action
  */
 export type ExecutePromotionOrderActionFn<T extends ConfigArgs> = (
+    ctx: RequestContext,
     order: Order,
     args: ConfigArgValues<T>,
 ) => number | Promise<number>;
@@ -43,6 +46,7 @@ export interface PromotionActionConfig<T extends ConfigArgs> extends Configurabl
 
 /**
  * @description
+ * Configuration for a {@link PromotionItemAction}
  *
  * @docsCategory promotions
  * @docsPage promotion-action
@@ -104,7 +108,7 @@ export abstract class PromotionAction<T extends ConfigArgs = {}> extends Configu
  * const itemPercentageDiscount = new PromotionItemAction({
  *     code: 'item_percentage_discount',
  *     args: { discount: 'percentage' },
- *     execute(orderItem, orderLine, args) {
+ *     execute(ctx, orderItem, orderLine, args) {
  *         return -orderLine.unitPrice * (args.discount / 100);
  *     },
  *     description: 'Discount every item by { discount }%',
@@ -123,8 +127,8 @@ export class PromotionItemAction<T extends ConfigArgs = ConfigArgs> extends Prom
     }
 
     /** @internal */
-    execute(orderItem: OrderItem, orderLine: OrderLine, args: ConfigArg[]) {
-        return this.executeFn(orderItem, orderLine, this.argsArrayToHash(args));
+    execute(ctx: RequestContext, orderItem: OrderItem, orderLine: OrderLine, args: ConfigArg[]) {
+        return this.executeFn(ctx, orderItem, orderLine, this.argsArrayToHash(args));
     }
 }
 
@@ -138,7 +142,7 @@ export class PromotionItemAction<T extends ConfigArgs = ConfigArgs> extends Prom
  * const orderPercentageDiscount = new PromotionOrderAction({
  *     code: 'order_percentage_discount',
  *     args: { discount: 'percentage' },
- *     execute(order, args) {
+ *     execute(ctx, order, args) {
  *         return -order.subTotal * (args.discount / 100);
  *     },
  *     description: 'Discount order by { discount }%',
@@ -157,7 +161,7 @@ export class PromotionOrderAction<T extends ConfigArgs = ConfigArgs> extends Pro
     }
 
     /** @internal */
-    execute(order: Order, args: ConfigArg[]) {
-        return this.executeFn(order, this.argsArrayToHash(args));
+    execute(ctx: RequestContext, order: Order, args: ConfigArg[]) {
+        return this.executeFn(ctx, order, this.argsArrayToHash(args));
     }
 }

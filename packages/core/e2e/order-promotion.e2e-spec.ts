@@ -15,7 +15,7 @@ import gql from 'graphql-tag';
 import path from 'path';
 
 import { initialData } from '../../../e2e-common/e2e-initial-data';
-import { TEST_SETUP_TIMEOUT_MS, testConfig } from '../../../e2e-common/test-config';
+import { testConfig, TEST_SETUP_TIMEOUT_MS } from '../../../e2e-common/test-config';
 
 import { testSuccessfulPaymentMethod } from './fixtures/test-payment-methods';
 import {
@@ -23,7 +23,7 @@ import {
     CreatePromotion,
     CreatePromotionInput,
     GetFacetList,
-    GetPromoProducts,
+    GetProductsWithVariantPrices,
     HistoryEntryType,
     PromotionFragment,
     RemoveCustomersFromGroup,
@@ -47,6 +47,7 @@ import {
     CREATE_CUSTOMER_GROUP,
     CREATE_PROMOTION,
     GET_FACET_LIST,
+    GET_PRODUCTS_WITH_VARIANT_PRICES,
     REMOVE_CUSTOMERS_FROM_GROUP,
 } from './graphql/shared-definitions';
 import {
@@ -58,7 +59,6 @@ import {
     REMOVE_COUPON_CODE,
     SET_CUSTOMER,
 } from './graphql/shop-definitions';
-import { assertThrowsWithMessage } from './utils/assert-throws-with-message';
 import { addPaymentToOrder, proceedToArrangingPayment } from './utils/test-order-utils';
 
 describe('Promotions applied to Orders', () => {
@@ -86,7 +86,7 @@ describe('Promotions applied to Orders', () => {
         input => !!input.lines,
     );
 
-    let products: GetPromoProducts.Items[];
+    let products: GetProductsWithVariantPrices.Items[];
 
     beforeAll(async () => {
         await server.init({
@@ -183,6 +183,13 @@ describe('Promotions applied to Orders', () => {
 
             expect(activeOrder!.history.items.map(i => omit(i, ['id']))).toEqual([
                 {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
+                {
                     type: HistoryEntryType.ORDER_COUPON_APPLIED,
                     data: {
                         couponCode: TEST_COUPON_CODE,
@@ -220,6 +227,13 @@ describe('Promotions applied to Orders', () => {
 
             expect(activeOrder!.history.items.map(i => omit(i, ['id']))).toEqual([
                 {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
+                {
                     type: HistoryEntryType.ORDER_COUPON_APPLIED,
                     data: {
                         couponCode: TEST_COUPON_CODE,
@@ -244,6 +258,13 @@ describe('Promotions applied to Orders', () => {
             });
 
             expect(removeCouponCode!.history.items.map(i => omit(i, ['id']))).toEqual([
+                {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
                 {
                     type: HistoryEntryType.ORDER_COUPON_APPLIED,
                     data: {
@@ -880,12 +901,15 @@ describe('Promotions applied to Orders', () => {
     });
 
     async function getProducts() {
-        const result = await adminClient.query<GetPromoProducts.Query>(GET_PROMO_PRODUCTS, {
-            options: {
-                take: 10,
-                skip: 0,
+        const result = await adminClient.query<GetProductsWithVariantPrices.Query>(
+            GET_PRODUCTS_WITH_VARIANT_PRICES,
+            {
+                options: {
+                    take: 10,
+                    skip: 0,
+                },
             },
-        });
+        );
         products = result.products.items;
     }
     async function createGlobalPromotions() {
@@ -920,7 +944,7 @@ describe('Promotions applied to Orders', () => {
 
     function getVariantBySlug(
         slug: 'item-1' | 'item-12' | 'item-60' | 'item-sale-1' | 'item-sale-12',
-    ): GetPromoProducts.Variants {
+    ): GetProductsWithVariantPrices.Variants {
         return products.find(p => p.slug === slug)!.variants[0];
     }
 
@@ -934,24 +958,3 @@ describe('Promotions applied to Orders', () => {
         `);
     }
 });
-
-export const GET_PROMO_PRODUCTS = gql`
-    query GetPromoProducts {
-        products {
-            items {
-                id
-                slug
-                variants {
-                    id
-                    price
-                    priceWithTax
-                    sku
-                    facetValues {
-                        id
-                        code
-                    }
-                }
-            }
-        }
-    }
-`;

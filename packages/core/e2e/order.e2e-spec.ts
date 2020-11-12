@@ -10,7 +10,7 @@ import gql from 'graphql-tag';
 import path from 'path';
 
 import { initialData } from '../../../e2e-common/e2e-initial-data';
-import { TEST_SETUP_TIMEOUT_MS, testConfig } from '../../../e2e-common/test-config';
+import { testConfig, TEST_SETUP_TIMEOUT_MS } from '../../../e2e-common/test-config';
 
 import {
     failsToSettlePaymentMethod,
@@ -37,6 +37,7 @@ import {
     GetOrderWithPayments,
     GetProductWithVariants,
     GetStockMovement,
+    GlobalFlag,
     HistoryEntryType,
     PaymentFragment,
     RefundFragment,
@@ -53,30 +54,27 @@ import {
     AddItemToOrder,
     DeletionResult,
     GetActiveOrder,
-    GetActiveOrderWithPayments,
-    GetOrderByCode,
     GetOrderByCodeWithPayments,
     TestOrderFragmentFragment,
     UpdatedOrder,
 } from './graphql/generated-e2e-shop-types';
 import {
+    CANCEL_ORDER,
     CREATE_FULFILLMENT,
     GET_CUSTOMER_LIST,
     GET_ORDER,
-    GET_ORDER_FULFILLMENTS,
     GET_ORDERS_LIST,
+    GET_ORDER_FULFILLMENTS,
     GET_PRODUCT_WITH_VARIANTS,
     GET_STOCK_MOVEMENT,
+    SETTLE_PAYMENT,
     TRANSIT_FULFILLMENT,
     UPDATE_PRODUCT_VARIANTS,
 } from './graphql/shared-definitions';
 import {
     ADD_ITEM_TO_ORDER,
     GET_ACTIVE_ORDER,
-    GET_ACTIVE_ORDER_WITH_PAYMENTS,
-    GET_ORDER_BY_CODE,
     GET_ORDER_BY_CODE_WITH_PAYMENTS,
-    TEST_ORDER_WITH_PAYMENTS_FRAGMENT,
 } from './graphql/shop-definitions';
 import { assertThrowsWithMessage } from './utils/assert-throws-with-message';
 import { addPaymentToOrder, proceedToArrangingPayment } from './utils/test-order-utils';
@@ -160,13 +158,21 @@ describe('Orders resolver', () => {
         expect(result.order!.id).toBe('T_2');
     });
 
-    it('order history initially empty', async () => {
+    it('order history initially contains Created -> AddingItems transition', async () => {
         const { order } = await adminClient.query<GetOrderHistory.Query, GetOrderHistory.Variables>(
             GET_ORDER_HISTORY,
             { id: 'T_1' },
         );
-        expect(order!.history.totalItems).toBe(0);
-        expect(order!.history.items).toEqual([]);
+        expect(order!.history.totalItems).toBe(1);
+        expect(order!.history.items.map(pick(['type', 'data']))).toEqual([
+            {
+                type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                data: {
+                    from: 'Created',
+                    to: 'AddingItems',
+                },
+            },
+        ]);
     });
 
     describe('payments', () => {
@@ -281,6 +287,13 @@ describe('Orders resolver', () => {
                 { id: 'T_2', options: { sort: { id: SortOrder.ASC } } },
             );
             expect(order!.history.items.map(pick(['type', 'data']))).toEqual([
+                {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
                 {
                     type: HistoryEntryType.ORDER_STATE_TRANSITION,
                     data: {
@@ -541,7 +554,7 @@ describe('Orders resolver', () => {
                 {
                     id: 'T_2',
                     options: {
-                        skip: 5,
+                        skip: 6,
                     },
                 },
             );
@@ -554,9 +567,25 @@ describe('Orders resolver', () => {
                 },
                 {
                     data: {
+                        from: 'Created',
+                        fulfillmentId: 'T_1',
+                        to: 'Pending',
+                    },
+                    type: HistoryEntryType.ORDER_FULFILLMENT_TRANSITION,
+                },
+                {
+                    data: {
                         fulfillmentId: 'T_2',
                     },
                     type: HistoryEntryType.ORDER_FULFILLMENT,
+                },
+                {
+                    data: {
+                        from: 'Created',
+                        fulfillmentId: 'T_2',
+                        to: 'Pending',
+                    },
+                    type: HistoryEntryType.ORDER_FULFILLMENT_TRANSITION,
                 },
                 {
                     data: {
@@ -735,10 +764,11 @@ describe('Orders resolver', () => {
                 },
             );
             let variant1 = result1.product!.variants[0];
-            expect(variant1.stockOnHand).toBe(98);
+            expect(variant1.stockOnHand).toBe(100);
+            expect(variant1.stockAllocated).toBe(2);
             expect(variant1.stockMovements.items.map(pick(['type', 'quantity']))).toEqual([
                 { type: StockMovementType.ADJUSTMENT, quantity: 100 },
-                { type: StockMovementType.SALE, quantity: -2 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
             ]);
 
             const { cancelOrder } = await adminClient.query<CancelOrder.Mutation, CancelOrder.Variables>(
@@ -775,11 +805,12 @@ describe('Orders resolver', () => {
             );
             variant1 = result2.product!.variants[0];
             expect(variant1.stockOnHand).toBe(100);
+            expect(variant1.stockAllocated).toBe(0);
             expect(variant1.stockMovements.items.map(pick(['type', 'quantity']))).toEqual([
                 { type: StockMovementType.ADJUSTMENT, quantity: 100 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
             ]);
         });
 
@@ -909,13 +940,14 @@ describe('Orders resolver', () => {
                 },
             );
             const variant1 = result1.product!.variants[0];
-            expect(variant1.stockOnHand).toBe(98);
+            expect(variant1.stockOnHand).toBe(100);
+            expect(variant1.stockAllocated).toBe(2);
             expect(variant1.stockMovements.items.map(pick(['type', 'quantity']))).toEqual([
                 { type: StockMovementType.ADJUSTMENT, quantity: 100 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.SALE, quantity: -2 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
             ]);
 
             const { order } = await adminClient.query<GetOrder.Query, GetOrder.Variables>(GET_ORDER, {
@@ -954,14 +986,15 @@ describe('Orders resolver', () => {
                 },
             );
             const variant2 = result2.product!.variants[0];
-            expect(variant2.stockOnHand).toBe(99);
+            expect(variant2.stockOnHand).toBe(100);
+            expect(variant2.stockAllocated).toBe(1);
             expect(variant2.stockMovements.items.map(pick(['type', 'quantity']))).toEqual([
                 { type: StockMovementType.ADJUSTMENT, quantity: 100 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
             ]);
         });
 
@@ -1011,14 +1044,15 @@ describe('Orders resolver', () => {
             );
             const variant2 = result.product!.variants[0];
             expect(variant2.stockOnHand).toBe(100);
+            expect(variant2.stockAllocated).toBe(0);
             expect(variant2.stockMovements.items.map(pick(['type', 'quantity']))).toEqual([
                 { type: StockMovementType.ADJUSTMENT, quantity: 100 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.SALE, quantity: -2 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
-                { type: StockMovementType.CANCELLATION, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.ALLOCATION, quantity: 2 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
+                { type: StockMovementType.RELEASE, quantity: 1 },
             ]);
         });
 
@@ -1033,6 +1067,13 @@ describe('Orders resolver', () => {
                 },
             );
             expect(order!.history.items.map(pick(['type', 'data']))).toEqual([
+                {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
                 {
                     type: HistoryEntryType.ORDER_STATE_TRANSITION,
                     data: {
@@ -1273,6 +1314,13 @@ describe('Orders resolver', () => {
                 {
                     type: HistoryEntryType.ORDER_STATE_TRANSITION,
                     data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
+                {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
                         from: 'AddingItems',
                         to: 'ArrangingPayment',
                     },
@@ -1354,7 +1402,7 @@ describe('Orders resolver', () => {
                 {
                     id: orderId,
                     options: {
-                        skip: 0,
+                        skip: 1,
                     },
                 },
             );
@@ -1372,7 +1420,9 @@ describe('Orders resolver', () => {
 
             const { activeOrder } = await shopClient.query<GetActiveOrder.Query>(GET_ACTIVE_ORDER);
 
-            expect(activeOrder!.history.items.map(pick(['type', 'data']))).toEqual([]);
+            expect(activeOrder!.history.items.map(pick(['type']))).toEqual([
+                { type: HistoryEntryType.ORDER_STATE_TRANSITION },
+            ]);
         });
 
         it('public note', async () => {
@@ -1394,7 +1444,7 @@ describe('Orders resolver', () => {
                 {
                     id: orderId,
                     options: {
-                        skip: 1,
+                        skip: 2,
                     },
                 },
             );
@@ -1411,6 +1461,13 @@ describe('Orders resolver', () => {
             const { activeOrder } = await shopClient.query<GetActiveOrder.Query>(GET_ACTIVE_ORDER);
 
             expect(activeOrder!.history.items.map(pick(['type', 'data']))).toEqual([
+                {
+                    type: HistoryEntryType.ORDER_STATE_TRANSITION,
+                    data: {
+                        from: 'Created',
+                        to: 'AddingItems',
+                    },
+                },
                 {
                     type: HistoryEntryType.ORDER_NOTE,
                     data: {
@@ -1441,7 +1498,7 @@ describe('Orders resolver', () => {
                 GetOrderHistory.Query,
                 GetOrderHistory.Variables
             >(GET_ORDER_HISTORY, { id: orderId });
-            expect(before?.history.totalItems).toBe(2);
+            expect(before?.history.totalItems).toBe(3);
 
             const { deleteOrderNote } = await adminClient.query<
                 DeleteOrderNote.Mutation,
@@ -1456,7 +1513,7 @@ describe('Orders resolver', () => {
                 GetOrderHistory.Query,
                 GetOrderHistory.Variables
             >(GET_ORDER_HISTORY, { id: orderId });
-            expect(after?.history.totalItems).toBe(1);
+            expect(after?.history.totalItems).toBe(2);
         });
     });
 });
@@ -1488,7 +1545,7 @@ async function createTestOrder(
         input: [
             {
                 id: productVariantId,
-                trackInventory: true,
+                trackInventory: GlobalFlag.TRUE,
             },
         ],
     });
@@ -1505,26 +1562,6 @@ async function createTestOrder(
     const orderId = (addItemToOrder as UpdatedOrder.Fragment).id;
     return { product, productVariantId, orderId };
 }
-
-export const SETTLE_PAYMENT = gql`
-    mutation SettlePayment($id: ID!) {
-        settlePayment(id: $id) {
-            ...Payment
-            ... on ErrorResult {
-                errorCode
-                message
-            }
-            ... on SettlePaymentError {
-                paymentErrorMessage
-            }
-        }
-    }
-    fragment Payment on Payment {
-        id
-        state
-        metadata
-    }
-`;
 
 export const GET_ORDER_LIST_FULFILLMENTS = gql`
     query GetOrderListFulfillments {
@@ -1554,28 +1591,6 @@ export const GET_ORDER_FULFILLMENT_ITEMS = gql`
         }
     }
     ${FULFILLMENT_FRAGMENT}
-`;
-
-export const CANCEL_ORDER = gql`
-    mutation CancelOrder($input: CancelOrderInput!) {
-        cancelOrder(input: $input) {
-            ...CanceledOrder
-            ... on ErrorResult {
-                errorCode
-                message
-            }
-        }
-    }
-    fragment CanceledOrder on Order {
-        id
-        lines {
-            quantity
-            items {
-                id
-                cancelled
-            }
-        }
-    }
 `;
 
 const REFUND_FRAGMENT = gql`

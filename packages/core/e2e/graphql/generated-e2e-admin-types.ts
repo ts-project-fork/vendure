@@ -1078,11 +1078,13 @@ export type Fulfillment = Node & {
     state: Scalars['String'];
     method: Scalars['String'];
     trackingCode?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type UpdateGlobalSettingsInput = {
     availableLanguages?: Maybe<Array<LanguageCode>>;
     trackInventory?: Maybe<Scalars['Boolean']>;
+    outOfStockThreshold?: Maybe<Scalars['Int']>;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
@@ -1143,6 +1145,11 @@ export type Order = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
+    /**
+     * The date & time that the Order was placed, i.e. the Customer
+     * completed the checkout and the Order is no longer "active"
+     */
+    orderPlacedAt?: Maybe<Scalars['DateTime']>;
     /** A unique code for the Order */
     code: Scalars['String'];
     state: Scalars['String'];
@@ -1169,6 +1176,7 @@ export type Order = Node & {
     shippingMethod?: Maybe<ShippingMethod>;
     totalBeforeTax: Scalars['Int'];
     total: Scalars['Int'];
+    taxSummary: Array<OrderTaxSummary>;
     history: HistoryEntryList;
     customFields?: Maybe<Scalars['JSON']>;
 };
@@ -1243,6 +1251,18 @@ export type EmptyOrderLineSelectionError = ErrorResult & {
 export type ItemsAlreadyFulfilledError = ErrorResult & {
     errorCode: ErrorCode;
     message: Scalars['String'];
+};
+
+/**
+ * Returned if attempting to create a Fulfillment when there is insufficient
+ * stockOnHand of a ProductVariant to satisfy the requested quantity.
+ */
+export type InsufficientStockOnHandError = ErrorResult & {
+    errorCode: ErrorCode;
+    message: Scalars['String'];
+    productVariantId: Scalars['ID'];
+    productVariantName: Scalars['String'];
+    stockOnHand: Scalars['Int'];
 };
 
 /** Returned if an operation has specified OrderLines from multiple Orders */
@@ -1328,7 +1348,8 @@ export type SettlePaymentResult =
 export type AddFulfillmentToOrderResult =
     | Fulfillment
     | EmptyOrderLineSelectionError
-    | ItemsAlreadyFulfilledError;
+    | ItemsAlreadyFulfilledError
+    | InsufficientStockOnHandError;
 
 export type CancelOrderResult =
     | Order
@@ -1462,8 +1483,11 @@ export type Product = Node & {
 
 export type ProductVariant = Node & {
     enabled: Scalars['Boolean'];
+    trackInventory: GlobalFlag;
     stockOnHand: Scalars['Int'];
-    trackInventory: Scalars['Boolean'];
+    stockAllocated: Scalars['Int'];
+    outOfStockThreshold: Scalars['Int'];
+    useGlobalOutOfStockThreshold: Scalars['Boolean'];
     stockMovements: StockMovementList;
     id: Scalars['ID'];
     product: Product;
@@ -1548,7 +1572,9 @@ export type CreateProductVariantInput = {
     featuredAssetId?: Maybe<Scalars['ID']>;
     assetIds?: Maybe<Array<Scalars['ID']>>;
     stockOnHand?: Maybe<Scalars['Int']>;
-    trackInventory?: Maybe<Scalars['Boolean']>;
+    outOfStockThreshold?: Maybe<Scalars['Int']>;
+    useGlobalOutOfStockThreshold?: Maybe<Scalars['Boolean']>;
+    trackInventory?: Maybe<GlobalFlag>;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
@@ -1563,7 +1589,9 @@ export type UpdateProductVariantInput = {
     featuredAssetId?: Maybe<Scalars['ID']>;
     assetIds?: Maybe<Array<Scalars['ID']>>;
     stockOnHand?: Maybe<Scalars['Int']>;
-    trackInventory?: Maybe<Scalars['Boolean']>;
+    outOfStockThreshold?: Maybe<Scalars['Int']>;
+    useGlobalOutOfStockThreshold?: Maybe<Scalars['Boolean']>;
+    trackInventory?: Maybe<GlobalFlag>;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
@@ -1635,20 +1663,28 @@ export type UpdateRoleInput = {
     channelIds?: Maybe<Array<Scalars['ID']>>;
 };
 
+export type ShippingMethodTranslationInput = {
+    id?: Maybe<Scalars['ID']>;
+    languageCode: LanguageCode;
+    name?: Maybe<Scalars['String']>;
+    description?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
+};
+
 export type CreateShippingMethodInput = {
     code: Scalars['String'];
-    description: Scalars['String'];
     checker: ConfigurableOperationInput;
     calculator: ConfigurableOperationInput;
+    translations: Array<ShippingMethodTranslationInput>;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type UpdateShippingMethodInput = {
     id: Scalars['ID'];
     code?: Maybe<Scalars['String']>;
-    description?: Maybe<Scalars['String']>;
     checker?: Maybe<ConfigurableOperationInput>;
     calculator?: Maybe<ConfigurableOperationInput>;
+    translations: Array<ShippingMethodTranslationInput>;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
@@ -1677,7 +1713,6 @@ export type TestShippingMethodResult = {
 export type TestShippingMethodQuote = {
     price: Scalars['Int'];
     priceWithTax: Scalars['Int'];
-    description: Scalars['String'];
     metadata?: Maybe<Scalars['JSON']>;
 };
 
@@ -1718,6 +1753,12 @@ export type UpdateZoneInput = {
     id: Scalars['ID'];
     name?: Maybe<Scalars['String']>;
 };
+
+export enum GlobalFlag {
+    TRUE = 'TRUE',
+    FALSE = 'FALSE',
+    INHERIT = 'INHERIT',
+}
 
 export enum AdjustmentType {
     TAX = 'TAX',
@@ -1768,6 +1809,72 @@ export enum DeletionResult {
     NOT_DELETED = 'NOT_DELETED',
 }
 
+/**
+ * @description
+ * Permissions for administrators and customers. Used to control access to
+ * GraphQL resolvers via the {@link Allow} decorator.
+ *
+ * @docsCategory common
+ */
+export enum Permission {
+    /** Authenticated means simply that the user is logged in */
+    Authenticated = 'Authenticated',
+    /** SuperAdmin has unrestricted access to all operations */
+    SuperAdmin = 'SuperAdmin',
+    /** Owner means the user owns this entity, e.g. a Customer's own Order */
+    Owner = 'Owner',
+    /** Public means any unauthenticated user may perform the operation */
+    Public = 'Public',
+    /** Grants permission to create Catalog */
+    CreateCatalog = 'CreateCatalog',
+    /** Grants permission to read Catalog */
+    ReadCatalog = 'ReadCatalog',
+    /** Grants permission to update Catalog */
+    UpdateCatalog = 'UpdateCatalog',
+    /** Grants permission to delete Catalog */
+    DeleteCatalog = 'DeleteCatalog',
+    /** Grants permission to create Customer */
+    CreateCustomer = 'CreateCustomer',
+    /** Grants permission to read Customer */
+    ReadCustomer = 'ReadCustomer',
+    /** Grants permission to update Customer */
+    UpdateCustomer = 'UpdateCustomer',
+    /** Grants permission to delete Customer */
+    DeleteCustomer = 'DeleteCustomer',
+    /** Grants permission to create Administrator */
+    CreateAdministrator = 'CreateAdministrator',
+    /** Grants permission to read Administrator */
+    ReadAdministrator = 'ReadAdministrator',
+    /** Grants permission to update Administrator */
+    UpdateAdministrator = 'UpdateAdministrator',
+    /** Grants permission to delete Administrator */
+    DeleteAdministrator = 'DeleteAdministrator',
+    /** Grants permission to create Order */
+    CreateOrder = 'CreateOrder',
+    /** Grants permission to read Order */
+    ReadOrder = 'ReadOrder',
+    /** Grants permission to update Order */
+    UpdateOrder = 'UpdateOrder',
+    /** Grants permission to delete Order */
+    DeleteOrder = 'DeleteOrder',
+    /** Grants permission to create Promotion */
+    CreatePromotion = 'CreatePromotion',
+    /** Grants permission to read Promotion */
+    ReadPromotion = 'ReadPromotion',
+    /** Grants permission to update Promotion */
+    UpdatePromotion = 'UpdatePromotion',
+    /** Grants permission to delete Promotion */
+    DeletePromotion = 'DeletePromotion',
+    /** Grants permission to create Settings */
+    CreateSettings = 'CreateSettings',
+    /** Grants permission to read Settings */
+    ReadSettings = 'ReadSettings',
+    /** Grants permission to update Settings */
+    UpdateSettings = 'UpdateSettings',
+    /** Grants permission to delete Settings */
+    DeleteSettings = 'DeleteSettings',
+}
+
 export type DeletionResponse = {
     result: DeletionResult;
     message?: Maybe<Scalars['String']>;
@@ -1805,6 +1912,7 @@ export enum ErrorCode {
     SETTLE_PAYMENT_ERROR = 'SETTLE_PAYMENT_ERROR',
     EMPTY_ORDER_LINE_SELECTION_ERROR = 'EMPTY_ORDER_LINE_SELECTION_ERROR',
     ITEMS_ALREADY_FULFILLED_ERROR = 'ITEMS_ALREADY_FULFILLED_ERROR',
+    INSUFFICIENT_STOCK_ON_HAND_ERROR = 'INSUFFICIENT_STOCK_ON_HAND_ERROR',
     MULTIPLE_ORDER_ERROR = 'MULTIPLE_ORDER_ERROR',
     CANCEL_ACTIVE_ORDER_ERROR = 'CANCEL_ACTIVE_ORDER_ERROR',
     PAYMENT_ORDER_MISMATCH_ERROR = 'PAYMENT_ORDER_MISMATCH_ERROR',
@@ -1831,6 +1939,8 @@ export type ErrorResult = {
 export type StringOperators = {
     eq?: Maybe<Scalars['String']>;
     contains?: Maybe<Scalars['String']>;
+    in?: Maybe<Array<Scalars['String']>>;
+    regex?: Maybe<Scalars['String']>;
 };
 
 export type BooleanOperators = {
@@ -2713,49 +2823,6 @@ export enum LanguageCode {
     zu = 'zu',
 }
 
-/**
- * "
- * @description
- * Permissions for administrators and customers. Used to control access to
- * GraphQL resolvers via the {@link Allow} decorator.
- *
- * @docsCategory common
- */
-export enum Permission {
-    /**  The Authenticated role means simply that the user is logged in  */
-    Authenticated = 'Authenticated',
-    /**  SuperAdmin can perform the most sensitive tasks */
-    SuperAdmin = 'SuperAdmin',
-    /**  Owner means the user owns this entity, e.g. a Customer's own Order */
-    Owner = 'Owner',
-    /**  Public means any unauthenticated user may perform the operation  */
-    Public = 'Public',
-    CreateCatalog = 'CreateCatalog',
-    ReadCatalog = 'ReadCatalog',
-    UpdateCatalog = 'UpdateCatalog',
-    DeleteCatalog = 'DeleteCatalog',
-    CreateCustomer = 'CreateCustomer',
-    ReadCustomer = 'ReadCustomer',
-    UpdateCustomer = 'UpdateCustomer',
-    DeleteCustomer = 'DeleteCustomer',
-    CreateAdministrator = 'CreateAdministrator',
-    ReadAdministrator = 'ReadAdministrator',
-    UpdateAdministrator = 'UpdateAdministrator',
-    DeleteAdministrator = 'DeleteAdministrator',
-    CreateOrder = 'CreateOrder',
-    ReadOrder = 'ReadOrder',
-    UpdateOrder = 'UpdateOrder',
-    DeleteOrder = 'DeleteOrder',
-    CreatePromotion = 'CreatePromotion',
-    ReadPromotion = 'ReadPromotion',
-    UpdatePromotion = 'UpdatePromotion',
-    DeletePromotion = 'DeletePromotion',
-    CreateSettings = 'CreateSettings',
-    ReadSettings = 'ReadSettings',
-    UpdateSettings = 'UpdateSettings',
-    DeleteSettings = 'DeleteSettings',
-}
-
 export type Address = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
@@ -2952,6 +3019,7 @@ export type GlobalSettings = {
     updatedAt: Scalars['DateTime'];
     availableLanguages: Array<LanguageCode>;
     trackInventory: Scalars['Boolean'];
+    outOfStockThreshold: Scalars['Int'];
     serverConfig: ServerConfig;
     customFields?: Maybe<Scalars['JSON']>;
 };
@@ -2961,9 +3029,16 @@ export type OrderProcessState = {
     to: Array<Scalars['String']>;
 };
 
+export type PermissionDefinition = {
+    name: Scalars['String'];
+    description: Scalars['String'];
+    assignable: Scalars['Boolean'];
+};
+
 export type ServerConfig = {
     orderProcess: Array<OrderProcessState>;
     permittedAssetTypes: Array<Scalars['String']>;
+    permissions: Array<PermissionDefinition>;
     customFieldConfig: CustomFields;
 };
 
@@ -3014,6 +3089,19 @@ export type ImportInfo = {
     imported: Scalars['Int'];
 };
 
+/**
+ * A summary of the taxes being applied to this order, grouped
+ * by taxRate.
+ */
+export type OrderTaxSummary = {
+    /** The taxRate as a percentage */
+    taxRate: Scalars['Float'];
+    /** The total net price or OrderItems to which this taxRate applies */
+    taxBase: Scalars['Int'];
+    /** The total tax being applied to the Order at this taxRate */
+    taxTotal: Scalars['Int'];
+};
+
 export type OrderAddress = {
     fullName?: Maybe<Scalars['String']>;
     company?: Maybe<Scalars['String']>;
@@ -3036,6 +3124,7 @@ export type ShippingMethodQuote = {
     id: Scalars['ID'];
     price: Scalars['Int'];
     priceWithTax: Scalars['Int'];
+    name: Scalars['String'];
     description: Scalars['String'];
     metadata?: Maybe<Scalars['JSON']>;
 };
@@ -3045,8 +3134,11 @@ export type OrderItem = Node & {
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     cancelled: Scalars['Boolean'];
+    /** The price of a single unit, excluding tax */
     unitPrice: Scalars['Int'];
+    /** The price of a single unit, including tax */
     unitPriceWithTax: Scalars['Int'];
+    /** @deprecated `unitPrice` is now always without tax */
     unitPriceIncludesTax: Scalars['Boolean'];
     taxRate: Scalars['Float'];
     adjustments: Array<Adjustment>;
@@ -3064,7 +3156,15 @@ export type OrderLine = Node & {
     unitPriceWithTax: Scalars['Int'];
     quantity: Scalars['Int'];
     items: Array<OrderItem>;
+    /** @deprecated Use `linePriceWithTax` instead */
     totalPrice: Scalars['Int'];
+    taxRate: Scalars['Float'];
+    /** The total price of the line excluding tax */
+    linePrice: Scalars['Int'];
+    /** The total tax on this line */
+    lineTax: Scalars['Int'];
+    /** The total price of the line including tax */
+    linePriceWithTax: Scalars['Int'];
     adjustments: Array<Adjustment>;
     order: Order;
     customFields?: Maybe<Scalars['JSON']>;
@@ -3252,10 +3352,21 @@ export type ShippingMethod = Node & {
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     code: Scalars['String'];
+    name: Scalars['String'];
     description: Scalars['String'];
     checker: ConfigurableOperation;
     calculator: ConfigurableOperation;
+    translations: Array<ShippingMethodTranslation>;
     customFields?: Maybe<Scalars['JSON']>;
+};
+
+export type ShippingMethodTranslation = {
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    languageCode: LanguageCode;
+    name: Scalars['String'];
+    description: Scalars['String'];
 };
 
 export type ShippingMethodList = PaginatedList & {
@@ -3265,6 +3376,8 @@ export type ShippingMethodList = PaginatedList & {
 
 export enum StockMovementType {
     ADJUSTMENT = 'ADJUSTMENT',
+    ALLOCATION = 'ALLOCATION',
+    RELEASE = 'RELEASE',
     SALE = 'SALE',
     CANCELLATION = 'CANCELLATION',
     RETURN = 'RETURN',
@@ -3289,7 +3402,7 @@ export type StockAdjustment = Node &
         quantity: Scalars['Int'];
     };
 
-export type Sale = Node &
+export type Allocation = Node &
     StockMovement & {
         id: Scalars['ID'];
         createdAt: Scalars['DateTime'];
@@ -3298,6 +3411,17 @@ export type Sale = Node &
         type: StockMovementType;
         quantity: Scalars['Int'];
         orderLine: OrderLine;
+    };
+
+export type Sale = Node &
+    StockMovement & {
+        id: Scalars['ID'];
+        createdAt: Scalars['DateTime'];
+        updatedAt: Scalars['DateTime'];
+        productVariant: ProductVariant;
+        type: StockMovementType;
+        quantity: Scalars['Int'];
+        orderItem: OrderItem;
     };
 
 export type Cancellation = Node &
@@ -3322,7 +3446,18 @@ export type Return = Node &
         orderItem: OrderItem;
     };
 
-export type StockMovementItem = StockAdjustment | Sale | Cancellation | Return;
+export type Release = Node &
+    StockMovement & {
+        id: Scalars['ID'];
+        createdAt: Scalars['DateTime'];
+        updatedAt: Scalars['DateTime'];
+        productVariant: ProductVariant;
+        type: StockMovementType;
+        quantity: Scalars['Int'];
+        orderItem: OrderItem;
+    };
+
+export type StockMovementItem = StockAdjustment | Allocation | Sale | Cancellation | Return | Release;
 
 export type StockMovementList = {
     items: Array<StockMovementItem>;
@@ -3655,6 +3790,7 @@ export type JobSortParameter = {
 export type OrderFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
+    orderPlacedAt?: Maybe<DateOperators>;
     code?: Maybe<StringOperators>;
     state?: Maybe<StringOperators>;
     active?: Maybe<BooleanOperators>;
@@ -3672,6 +3808,7 @@ export type OrderSortParameter = {
     id?: Maybe<SortOrder>;
     createdAt?: Maybe<SortOrder>;
     updatedAt?: Maybe<SortOrder>;
+    orderPlacedAt?: Maybe<SortOrder>;
     code?: Maybe<SortOrder>;
     state?: Maybe<SortOrder>;
     totalQuantity?: Maybe<SortOrder>;
@@ -3757,6 +3894,7 @@ export type ShippingMethodFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
     code?: Maybe<StringOperators>;
+    name?: Maybe<StringOperators>;
     description?: Maybe<StringOperators>;
 };
 
@@ -3765,6 +3903,7 @@ export type ShippingMethodSortParameter = {
     createdAt?: Maybe<SortOrder>;
     updatedAt?: Maybe<SortOrder>;
     code?: Maybe<SortOrder>;
+    name?: Maybe<SortOrder>;
     description?: Maybe<SortOrder>;
 };
 
@@ -3786,8 +3925,11 @@ export type TaxRateSortParameter = {
 
 export type ProductVariantFilterParameter = {
     enabled?: Maybe<BooleanOperators>;
+    trackInventory?: Maybe<StringOperators>;
     stockOnHand?: Maybe<NumberOperators>;
-    trackInventory?: Maybe<BooleanOperators>;
+    stockAllocated?: Maybe<NumberOperators>;
+    outOfStockThreshold?: Maybe<NumberOperators>;
+    useGlobalOutOfStockThreshold?: Maybe<BooleanOperators>;
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
     languageCode?: Maybe<StringOperators>;
@@ -3801,6 +3943,8 @@ export type ProductVariantFilterParameter = {
 
 export type ProductVariantSortParameter = {
     stockOnHand?: Maybe<SortOrder>;
+    stockAllocated?: Maybe<SortOrder>;
+    outOfStockThreshold?: Maybe<SortOrder>;
     id?: Maybe<SortOrder>;
     productId?: Maybe<SortOrder>;
     createdAt?: Maybe<SortOrder>;
@@ -3830,6 +3974,7 @@ export type CustomFields = {
     Customer: Array<CustomFieldConfig>;
     Facet: Array<CustomFieldConfig>;
     FacetValue: Array<CustomFieldConfig>;
+    Fulfillment: Array<CustomFieldConfig>;
     GlobalSettings: Array<CustomFieldConfig>;
     Order: Array<CustomFieldConfig>;
     OrderLine: Array<CustomFieldConfig>;
@@ -4268,6 +4413,24 @@ export type IdTest9Query = { products: { items: Array<ProdFragmentFragment> } };
 
 export type ProdFragmentFragment = Pick<Product, 'id'> & { featuredAsset?: Maybe<Pick<Asset, 'id'>> };
 
+export type IdTest10QueryVariables = Exact<{ [key: string]: never }>;
+
+export type IdTest10Query = { products: { items: Array<ProdFragment1Fragment> } };
+
+export type ProdFragment1Fragment = ProdFragment2Fragment;
+
+export type ProdFragment2Fragment = Pick<Product, 'id'> & { featuredAsset?: Maybe<Pick<Asset, 'id'>> };
+
+export type IdTest11QueryVariables = Exact<{ [key: string]: never }>;
+
+export type IdTest11Query = { products: { items: Array<ProdFragment1_1Fragment> } };
+
+export type ProdFragment1_1Fragment = ProdFragment2_1Fragment;
+
+export type ProdFragment2_1Fragment = ProdFragment3_1Fragment;
+
+export type ProdFragment3_1Fragment = Pick<Product, 'id'> & { featuredAsset?: Maybe<Pick<Asset, 'id'>> };
+
 export type GetFacetWithValuesQueryVariables = Exact<{
     id: Scalars['ID'];
 }>;
@@ -4310,33 +4473,9 @@ export type UpdateFacetValuesMutationVariables = Exact<{
 
 export type UpdateFacetValuesMutation = { updateFacetValues: Array<FacetValueFragment> };
 
-export type GlobalSettingsFragment = Pick<GlobalSettings, 'id' | 'availableLanguages' | 'trackInventory'> & {
-    serverConfig: Pick<ServerConfig, 'permittedAssetTypes'> & {
-        orderProcess: Array<Pick<OrderProcessState, 'name' | 'to'>>;
-        customFieldConfig: {
-            Customer: Array<
-                | Pick<StringCustomFieldConfig, 'name'>
-                | Pick<LocaleStringCustomFieldConfig, 'name'>
-                | Pick<IntCustomFieldConfig, 'name'>
-                | Pick<FloatCustomFieldConfig, 'name'>
-                | Pick<BooleanCustomFieldConfig, 'name'>
-                | Pick<DateTimeCustomFieldConfig, 'name'>
-            >;
-        };
-    };
-};
-
 export type GetGlobalSettingsQueryVariables = Exact<{ [key: string]: never }>;
 
 export type GetGlobalSettingsQuery = { globalSettings: GlobalSettingsFragment };
-
-export type UpdateGlobalSettingsMutationVariables = Exact<{
-    input: UpdateGlobalSettingsInput;
-}>;
-
-export type UpdateGlobalSettingsMutation = {
-    updateGlobalSettings: GlobalSettingsFragment | Pick<ChannelDefaultLanguageError, 'errorCode' | 'message'>;
-};
 
 export type AdministratorFragment = Pick<Administrator, 'id' | 'firstName' | 'lastName' | 'emailAddress'> & {
     user: Pick<User, 'id' | 'identifier' | 'lastLogin'> & {
@@ -4515,13 +4654,15 @@ export type CurrentUserFragment = Pick<CurrentUser, 'id' | 'identifier'> & {
     channels: Array<Pick<CurrentUserChannel, 'code' | 'token' | 'permissions'>>;
 };
 
-export type VariantWithStockFragment = Pick<ProductVariant, 'id' | 'stockOnHand'> & {
+export type VariantWithStockFragment = Pick<ProductVariant, 'id' | 'stockOnHand' | 'stockAllocated'> & {
     stockMovements: Pick<StockMovementList, 'totalItems'> & {
         items: Array<
             | Pick<StockAdjustment, 'id' | 'type' | 'quantity'>
+            | Pick<Allocation, 'id' | 'type' | 'quantity'>
             | Pick<Sale, 'id' | 'type' | 'quantity'>
             | Pick<Cancellation, 'id' | 'type' | 'quantity'>
             | Pick<Return, 'id' | 'type' | 'quantity'>
+            | Pick<Release, 'id' | 'type' | 'quantity'>
         >;
     };
 };
@@ -4535,6 +4676,46 @@ export type ChannelFragment = Pick<
     Channel,
     'id' | 'code' | 'token' | 'currencyCode' | 'defaultLanguageCode' | 'pricesIncludeTax'
 > & { defaultShippingZone?: Maybe<Pick<Zone, 'id'>>; defaultTaxZone?: Maybe<Pick<Zone, 'id'>> };
+
+export type GlobalSettingsFragment = Pick<
+    GlobalSettings,
+    'id' | 'availableLanguages' | 'trackInventory' | 'outOfStockThreshold'
+> & {
+    serverConfig: Pick<ServerConfig, 'permittedAssetTypes'> & {
+        orderProcess: Array<Pick<OrderProcessState, 'name' | 'to'>>;
+        permissions: Array<Pick<PermissionDefinition, 'name' | 'description' | 'assignable'>>;
+        customFieldConfig: {
+            Customer: Array<
+                | Pick<StringCustomFieldConfig, 'name'>
+                | Pick<LocaleStringCustomFieldConfig, 'name'>
+                | Pick<IntCustomFieldConfig, 'name'>
+                | Pick<FloatCustomFieldConfig, 'name'>
+                | Pick<BooleanCustomFieldConfig, 'name'>
+                | Pick<DateTimeCustomFieldConfig, 'name'>
+            >;
+        };
+    };
+};
+
+export type CustomerGroupFragment = Pick<CustomerGroup, 'id' | 'name'> & {
+    customers: Pick<CustomerList, 'totalItems'> & { items: Array<Pick<Customer, 'id'>> };
+};
+
+export type ProductOptionGroupFragment = Pick<ProductOptionGroup, 'id' | 'code' | 'name'> & {
+    options: Array<Pick<ProductOption, 'id' | 'code' | 'name'>>;
+    translations: Array<Pick<ProductOptionGroupTranslation, 'id' | 'languageCode' | 'name'>>;
+};
+
+export type ProductWithOptionsFragment = Pick<Product, 'id'> & {
+    optionGroups: Array<
+        Pick<ProductOptionGroup, 'id' | 'code'> & { options: Array<Pick<ProductOption, 'id' | 'code'>> }
+    >;
+};
+
+export type ShippingMethodFragment = Pick<ShippingMethod, 'id' | 'code' | 'name' | 'description'> & {
+    calculator: Pick<ConfigurableOperation, 'code'>;
+    checker: Pick<ConfigurableOperation, 'code'>;
+};
 
 export type CreateAdministratorMutationVariables = Exact<{
     input: CreateAdministratorInput;
@@ -4815,10 +4996,6 @@ export type GetOrderQueryVariables = Exact<{
 
 export type GetOrderQuery = { order?: Maybe<OrderWithLinesFragment> };
 
-export type CustomerGroupFragment = Pick<CustomerGroup, 'id' | 'name'> & {
-    customers: Pick<CustomerList, 'totalItems'> & { items: Array<Pick<Customer, 'id'>> };
-};
-
 export type CreateCustomerGroupMutationVariables = Exact<{
     input: CreateCustomerGroupInput;
 }>;
@@ -4840,7 +5017,8 @@ export type CreateFulfillmentMutation = {
     addFulfillmentToOrder:
         | FulfillmentFragment
         | Pick<EmptyOrderLineSelectionError, 'errorCode' | 'message'>
-        | Pick<ItemsAlreadyFulfilledError, 'errorCode' | 'message'>;
+        | Pick<ItemsAlreadyFulfilledError, 'errorCode' | 'message'>
+        | Pick<InsufficientStockOnHandError, 'errorCode' | 'message'>;
 };
 
 export type TransitFulfillmentMutationVariables = Exact<{
@@ -5011,43 +5189,41 @@ export type AdminTransitionMutation = {
     >;
 };
 
-export type ProductOptionGroupFragment = Pick<ProductOptionGroup, 'id' | 'code' | 'name'> & {
-    options: Array<Pick<ProductOption, 'id' | 'code' | 'name'>>;
-    translations: Array<Pick<ProductOptionGroupTranslation, 'id' | 'languageCode' | 'name'>>;
+export type CancelOrderMutationVariables = Exact<{
+    input: CancelOrderInput;
+}>;
+
+export type CancelOrderMutation = {
+    cancelOrder:
+        | CanceledOrderFragment
+        | Pick<EmptyOrderLineSelectionError, 'errorCode' | 'message'>
+        | Pick<QuantityTooGreatError, 'errorCode' | 'message'>
+        | Pick<MultipleOrderError, 'errorCode' | 'message'>
+        | Pick<CancelActiveOrderError, 'errorCode' | 'message'>
+        | Pick<OrderStateTransitionError, 'errorCode' | 'message'>;
 };
 
-export type CreateProductOptionGroupMutationVariables = Exact<{
-    input: CreateProductOptionGroupInput;
-}>;
-
-export type CreateProductOptionGroupMutation = { createProductOptionGroup: ProductOptionGroupFragment };
-
-export type ProductWithOptionsFragment = Pick<Product, 'id'> & {
-    optionGroups: Array<
-        Pick<ProductOptionGroup, 'id' | 'code'> & { options: Array<Pick<ProductOption, 'id' | 'code'>> }
-    >;
+export type CanceledOrderFragment = Pick<Order, 'id'> & {
+    lines: Array<Pick<OrderLine, 'quantity'> & { items: Array<Pick<OrderItem, 'id' | 'cancelled'>> }>;
 };
 
-export type AddOptionGroupToProductMutationVariables = Exact<{
-    productId: Scalars['ID'];
-    optionGroupId: Scalars['ID'];
+export type UpdateGlobalSettingsMutationVariables = Exact<{
+    input: UpdateGlobalSettingsInput;
 }>;
 
-export type AddOptionGroupToProductMutation = { addOptionGroupToProduct: ProductWithOptionsFragment };
+export type UpdateGlobalSettingsMutation = {
+    updateGlobalSettings: GlobalSettingsFragment | Pick<ChannelDefaultLanguageError, 'errorCode' | 'message'>;
+};
 
-export type UpdateOptionGroupMutationVariables = Exact<{
-    input: UpdateProductOptionGroupInput;
+export type UpdateRoleMutationVariables = Exact<{
+    input: UpdateRoleInput;
 }>;
 
-export type UpdateOptionGroupMutation = { updateProductOptionGroup: Pick<ProductOptionGroup, 'id'> };
+export type UpdateRoleMutation = { updateRole: RoleFragment };
 
-export type DeletePromotionAdHoc1MutationVariables = Exact<{ [key: string]: never }>;
+export type GetProductsWithVariantPricesQueryVariables = Exact<{ [key: string]: never }>;
 
-export type DeletePromotionAdHoc1Mutation = { deletePromotion: Pick<DeletionResponse, 'result'> };
-
-export type GetPromoProductsQueryVariables = Exact<{ [key: string]: never }>;
-
-export type GetPromoProductsQuery = {
+export type GetProductsWithVariantPricesQuery = {
     products: {
         items: Array<
             Pick<Product, 'id' | 'slug'> & {
@@ -5060,6 +5236,25 @@ export type GetPromoProductsQuery = {
         >;
     };
 };
+
+export type CreateProductOptionGroupMutationVariables = Exact<{
+    input: CreateProductOptionGroupInput;
+}>;
+
+export type CreateProductOptionGroupMutation = { createProductOptionGroup: ProductOptionGroupFragment };
+
+export type AddOptionGroupToProductMutationVariables = Exact<{
+    productId: Scalars['ID'];
+    optionGroupId: Scalars['ID'];
+}>;
+
+export type AddOptionGroupToProductMutation = { addOptionGroupToProduct: ProductWithOptionsFragment };
+
+export type CreateShippingMethodMutationVariables = Exact<{
+    input: CreateShippingMethodInput;
+}>;
+
+export type CreateShippingMethodMutation = { createShippingMethod: ShippingMethodFragment };
 
 export type SettlePaymentMutationVariables = Exact<{
     id: Scalars['ID'];
@@ -5074,6 +5269,16 @@ export type SettlePaymentMutation = {
 };
 
 export type PaymentFragment = Pick<Payment, 'id' | 'state' | 'metadata'>;
+
+export type UpdateOptionGroupMutationVariables = Exact<{
+    input: UpdateProductOptionGroupInput;
+}>;
+
+export type UpdateOptionGroupMutation = { updateProductOptionGroup: Pick<ProductOptionGroup, 'id'> };
+
+export type DeletePromotionAdHoc1MutationVariables = Exact<{ [key: string]: never }>;
+
+export type DeletePromotionAdHoc1Mutation = { deletePromotion: Pick<DeletionResponse, 'result'> };
 
 export type GetOrderListFulfillmentsQueryVariables = Exact<{ [key: string]: never }>;
 
@@ -5093,24 +5298,6 @@ export type GetOrderFulfillmentItemsQueryVariables = Exact<{
 
 export type GetOrderFulfillmentItemsQuery = {
     order?: Maybe<Pick<Order, 'id' | 'state'> & { fulfillments?: Maybe<Array<FulfillmentFragment>> }>;
-};
-
-export type CancelOrderMutationVariables = Exact<{
-    input: CancelOrderInput;
-}>;
-
-export type CancelOrderMutation = {
-    cancelOrder:
-        | CanceledOrderFragment
-        | Pick<EmptyOrderLineSelectionError, 'errorCode' | 'message'>
-        | Pick<QuantityTooGreatError, 'errorCode' | 'message'>
-        | Pick<MultipleOrderError, 'errorCode' | 'message'>
-        | Pick<CancelActiveOrderError, 'errorCode' | 'message'>
-        | Pick<OrderStateTransitionError, 'errorCode' | 'message'>;
-};
-
-export type CanceledOrderFragment = Pick<Order, 'id'> & {
-    lines: Array<Pick<OrderLine, 'quantity'> & { items: Array<Pick<OrderItem, 'id' | 'cancelled'>> }>;
 };
 
 export type RefundFragment = Pick<
@@ -5293,12 +5480,6 @@ export type GetRoleQueryVariables = Exact<{
 
 export type GetRoleQuery = { role?: Maybe<RoleFragment> };
 
-export type UpdateRoleMutationVariables = Exact<{
-    input: UpdateRoleInput;
-}>;
-
-export type UpdateRoleMutation = { updateRole: RoleFragment };
-
 export type DeleteRoleMutationVariables = Exact<{
     id: Scalars['ID'];
 }>;
@@ -5308,11 +5489,6 @@ export type DeleteRoleMutation = { deleteRole: Pick<DeletionResponse, 'result' |
 export type LogoutMutationVariables = Exact<{ [key: string]: never }>;
 
 export type LogoutMutation = { logout: Pick<Success, 'success'> };
-
-export type ShippingMethodFragment = Pick<ShippingMethod, 'id' | 'code' | 'description'> & {
-    calculator: Pick<ConfigurableOperation, 'code'>;
-    checker: Pick<ConfigurableOperation, 'code'>;
-};
 
 export type GetShippingMethodListQueryVariables = Exact<{ [key: string]: never }>;
 
@@ -5325,12 +5501,6 @@ export type GetShippingMethodQueryVariables = Exact<{
 }>;
 
 export type GetShippingMethodQuery = { shippingMethod?: Maybe<ShippingMethodFragment> };
-
-export type CreateShippingMethodMutationVariables = Exact<{
-    input: CreateShippingMethodInput;
-}>;
-
-export type CreateShippingMethodMutation = { createShippingMethod: ShippingMethodFragment };
 
 export type UpdateShippingMethodMutationVariables = Exact<{
     input: UpdateShippingMethodInput;
@@ -5382,7 +5552,7 @@ export type TestEligibleMethodsQueryVariables = Exact<{
 
 export type TestEligibleMethodsQuery = {
     testEligibleShippingMethods: Array<
-        Pick<ShippingMethodQuote, 'id' | 'description' | 'price' | 'priceWithTax' | 'metadata'>
+        Pick<ShippingMethodQuote, 'id' | 'name' | 'description' | 'price' | 'priceWithTax' | 'metadata'>
     >;
 };
 
@@ -6102,6 +6272,42 @@ export namespace ProdFragment {
     export type FeaturedAsset = NonNullable<ProdFragmentFragment['featuredAsset']>;
 }
 
+export namespace IdTest10 {
+    export type Variables = IdTest10QueryVariables;
+    export type Query = IdTest10Query;
+    export type Products = NonNullable<IdTest10Query['products']>;
+    export type Items = NonNullable<NonNullable<NonNullable<IdTest10Query['products']>['items']>[number]>;
+}
+
+export namespace ProdFragment1 {
+    export type Fragment = ProdFragment1Fragment;
+}
+
+export namespace ProdFragment2 {
+    export type Fragment = ProdFragment2Fragment;
+    export type FeaturedAsset = NonNullable<ProdFragment2Fragment['featuredAsset']>;
+}
+
+export namespace IdTest11 {
+    export type Variables = IdTest11QueryVariables;
+    export type Query = IdTest11Query;
+    export type Products = NonNullable<IdTest11Query['products']>;
+    export type Items = NonNullable<NonNullable<NonNullable<IdTest11Query['products']>['items']>[number]>;
+}
+
+export namespace ProdFragment1_1 {
+    export type Fragment = ProdFragment1_1Fragment;
+}
+
+export namespace ProdFragment2_1 {
+    export type Fragment = ProdFragment2_1Fragment;
+}
+
+export namespace ProdFragment3_1 {
+    export type Fragment = ProdFragment3_1Fragment;
+    export type FeaturedAsset = NonNullable<ProdFragment3_1Fragment['featuredAsset']>;
+}
+
 export namespace GetFacetWithValues {
     export type Variables = GetFacetWithValuesQueryVariables;
     export type Query = GetFacetWithValuesQuery;
@@ -6154,46 +6360,10 @@ export namespace UpdateFacetValues {
     >;
 }
 
-export namespace GlobalSettings {
-    export type Fragment = GlobalSettingsFragment;
-    export type ServerConfig = NonNullable<GlobalSettingsFragment['serverConfig']>;
-    export type OrderProcess = NonNullable<
-        NonNullable<NonNullable<GlobalSettingsFragment['serverConfig']>['orderProcess']>[number]
-    >;
-    export type CustomFieldConfig = NonNullable<
-        NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']
-    >;
-    export type Customer = NonNullable<
-        NonNullable<
-            NonNullable<NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']>['Customer']
-        >[number]
-    >;
-    export type CustomFieldInlineFragment = DiscriminateUnion<
-        NonNullable<
-            NonNullable<
-                NonNullable<
-                    NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']
-                >['Customer']
-            >[number]
-        >,
-        { __typename?: 'CustomField' }
-    >;
-}
-
 export namespace GetGlobalSettings {
     export type Variables = GetGlobalSettingsQueryVariables;
     export type Query = GetGlobalSettingsQuery;
     export type GlobalSettings = NonNullable<GetGlobalSettingsQuery['globalSettings']>;
-}
-
-export namespace UpdateGlobalSettings {
-    export type Variables = UpdateGlobalSettingsMutationVariables;
-    export type Mutation = UpdateGlobalSettingsMutation;
-    export type UpdateGlobalSettings = NonNullable<UpdateGlobalSettingsMutation['updateGlobalSettings']>;
-    export type ErrorResultInlineFragment = DiscriminateUnion<
-        NonNullable<UpdateGlobalSettingsMutation['updateGlobalSettings']>,
-        { __typename?: 'ErrorResult' }
-    >;
 }
 
 export namespace Administrator {
@@ -6363,6 +6533,65 @@ export namespace Channel {
     export type Fragment = ChannelFragment;
     export type DefaultShippingZone = NonNullable<ChannelFragment['defaultShippingZone']>;
     export type DefaultTaxZone = NonNullable<ChannelFragment['defaultTaxZone']>;
+}
+
+export namespace GlobalSettings {
+    export type Fragment = GlobalSettingsFragment;
+    export type ServerConfig = NonNullable<GlobalSettingsFragment['serverConfig']>;
+    export type OrderProcess = NonNullable<
+        NonNullable<NonNullable<GlobalSettingsFragment['serverConfig']>['orderProcess']>[number]
+    >;
+    export type Permissions = NonNullable<
+        NonNullable<NonNullable<GlobalSettingsFragment['serverConfig']>['permissions']>[number]
+    >;
+    export type CustomFieldConfig = NonNullable<
+        NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']
+    >;
+    export type Customer = NonNullable<
+        NonNullable<
+            NonNullable<NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']>['Customer']
+        >[number]
+    >;
+    export type CustomFieldInlineFragment = DiscriminateUnion<
+        NonNullable<
+            NonNullable<
+                NonNullable<
+                    NonNullable<GlobalSettingsFragment['serverConfig']>['customFieldConfig']
+                >['Customer']
+            >[number]
+        >,
+        { __typename?: 'CustomField' }
+    >;
+}
+
+export namespace CustomerGroup {
+    export type Fragment = CustomerGroupFragment;
+    export type Customers = NonNullable<CustomerGroupFragment['customers']>;
+    export type Items = NonNullable<
+        NonNullable<NonNullable<CustomerGroupFragment['customers']>['items']>[number]
+    >;
+}
+
+export namespace ProductOptionGroup {
+    export type Fragment = ProductOptionGroupFragment;
+    export type Options = NonNullable<NonNullable<ProductOptionGroupFragment['options']>[number]>;
+    export type Translations = NonNullable<NonNullable<ProductOptionGroupFragment['translations']>[number]>;
+}
+
+export namespace ProductWithOptions {
+    export type Fragment = ProductWithOptionsFragment;
+    export type OptionGroups = NonNullable<NonNullable<ProductWithOptionsFragment['optionGroups']>[number]>;
+    export type Options = NonNullable<
+        NonNullable<
+            NonNullable<NonNullable<ProductWithOptionsFragment['optionGroups']>[number]>['options']
+        >[number]
+    >;
+}
+
+export namespace ShippingMethod {
+    export type Fragment = ShippingMethodFragment;
+    export type Calculator = NonNullable<ShippingMethodFragment['calculator']>;
+    export type Checker = NonNullable<ShippingMethodFragment['checker']>;
 }
 
 export namespace CreateAdministrator {
@@ -6643,14 +6872,6 @@ export namespace GetOrder {
     export type Order = NonNullable<GetOrderQuery['order']>;
 }
 
-export namespace CustomerGroup {
-    export type Fragment = CustomerGroupFragment;
-    export type Customers = NonNullable<CustomerGroupFragment['customers']>;
-    export type Items = NonNullable<
-        NonNullable<NonNullable<CustomerGroupFragment['customers']>['items']>[number]
-    >;
-}
-
 export namespace CreateCustomerGroup {
     export type Variables = CreateCustomerGroupMutationVariables;
     export type Mutation = CreateCustomerGroupMutation;
@@ -6813,10 +7034,67 @@ export namespace AdminTransition {
     >;
 }
 
-export namespace ProductOptionGroup {
-    export type Fragment = ProductOptionGroupFragment;
-    export type Options = NonNullable<NonNullable<ProductOptionGroupFragment['options']>[number]>;
-    export type Translations = NonNullable<NonNullable<ProductOptionGroupFragment['translations']>[number]>;
+export namespace CancelOrder {
+    export type Variables = CancelOrderMutationVariables;
+    export type Mutation = CancelOrderMutation;
+    export type CancelOrder = NonNullable<CancelOrderMutation['cancelOrder']>;
+    export type ErrorResultInlineFragment = DiscriminateUnion<
+        NonNullable<CancelOrderMutation['cancelOrder']>,
+        { __typename?: 'ErrorResult' }
+    >;
+}
+
+export namespace CanceledOrder {
+    export type Fragment = CanceledOrderFragment;
+    export type Lines = NonNullable<NonNullable<CanceledOrderFragment['lines']>[number]>;
+    export type Items = NonNullable<
+        NonNullable<NonNullable<NonNullable<CanceledOrderFragment['lines']>[number]>['items']>[number]
+    >;
+}
+
+export namespace UpdateGlobalSettings {
+    export type Variables = UpdateGlobalSettingsMutationVariables;
+    export type Mutation = UpdateGlobalSettingsMutation;
+    export type UpdateGlobalSettings = NonNullable<UpdateGlobalSettingsMutation['updateGlobalSettings']>;
+    export type ErrorResultInlineFragment = DiscriminateUnion<
+        NonNullable<UpdateGlobalSettingsMutation['updateGlobalSettings']>,
+        { __typename?: 'ErrorResult' }
+    >;
+}
+
+export namespace UpdateRole {
+    export type Variables = UpdateRoleMutationVariables;
+    export type Mutation = UpdateRoleMutation;
+    export type UpdateRole = NonNullable<UpdateRoleMutation['updateRole']>;
+}
+
+export namespace GetProductsWithVariantPrices {
+    export type Variables = GetProductsWithVariantPricesQueryVariables;
+    export type Query = GetProductsWithVariantPricesQuery;
+    export type Products = NonNullable<GetProductsWithVariantPricesQuery['products']>;
+    export type Items = NonNullable<
+        NonNullable<NonNullable<GetProductsWithVariantPricesQuery['products']>['items']>[number]
+    >;
+    export type Variants = NonNullable<
+        NonNullable<
+            NonNullable<
+                NonNullable<NonNullable<GetProductsWithVariantPricesQuery['products']>['items']>[number]
+            >['variants']
+        >[number]
+    >;
+    export type FacetValues = NonNullable<
+        NonNullable<
+            NonNullable<
+                NonNullable<
+                    NonNullable<
+                        NonNullable<
+                            NonNullable<GetProductsWithVariantPricesQuery['products']>['items']
+                        >[number]
+                    >['variants']
+                >[number]
+            >['facetValues']
+        >[number]
+    >;
 }
 
 export namespace CreateProductOptionGroup {
@@ -6824,16 +7102,6 @@ export namespace CreateProductOptionGroup {
     export type Mutation = CreateProductOptionGroupMutation;
     export type CreateProductOptionGroup = NonNullable<
         CreateProductOptionGroupMutation['createProductOptionGroup']
-    >;
-}
-
-export namespace ProductWithOptions {
-    export type Fragment = ProductWithOptionsFragment;
-    export type OptionGroups = NonNullable<NonNullable<ProductWithOptionsFragment['optionGroups']>[number]>;
-    export type Options = NonNullable<
-        NonNullable<
-            NonNullable<NonNullable<ProductWithOptionsFragment['optionGroups']>[number]>['options']
-        >[number]
     >;
 }
 
@@ -6845,43 +7113,10 @@ export namespace AddOptionGroupToProduct {
     >;
 }
 
-export namespace UpdateOptionGroup {
-    export type Variables = UpdateOptionGroupMutationVariables;
-    export type Mutation = UpdateOptionGroupMutation;
-    export type UpdateProductOptionGroup = NonNullable<UpdateOptionGroupMutation['updateProductOptionGroup']>;
-}
-
-export namespace DeletePromotionAdHoc1 {
-    export type Variables = DeletePromotionAdHoc1MutationVariables;
-    export type Mutation = DeletePromotionAdHoc1Mutation;
-    export type DeletePromotion = NonNullable<DeletePromotionAdHoc1Mutation['deletePromotion']>;
-}
-
-export namespace GetPromoProducts {
-    export type Variables = GetPromoProductsQueryVariables;
-    export type Query = GetPromoProductsQuery;
-    export type Products = NonNullable<GetPromoProductsQuery['products']>;
-    export type Items = NonNullable<
-        NonNullable<NonNullable<GetPromoProductsQuery['products']>['items']>[number]
-    >;
-    export type Variants = NonNullable<
-        NonNullable<
-            NonNullable<
-                NonNullable<NonNullable<GetPromoProductsQuery['products']>['items']>[number]
-            >['variants']
-        >[number]
-    >;
-    export type FacetValues = NonNullable<
-        NonNullable<
-            NonNullable<
-                NonNullable<
-                    NonNullable<
-                        NonNullable<NonNullable<GetPromoProductsQuery['products']>['items']>[number]
-                    >['variants']
-                >[number]
-            >['facetValues']
-        >[number]
-    >;
+export namespace CreateShippingMethod {
+    export type Variables = CreateShippingMethodMutationVariables;
+    export type Mutation = CreateShippingMethodMutation;
+    export type CreateShippingMethod = NonNullable<CreateShippingMethodMutation['createShippingMethod']>;
 }
 
 export namespace SettlePayment {
@@ -6900,6 +7135,18 @@ export namespace SettlePayment {
 
 export namespace Payment {
     export type Fragment = PaymentFragment;
+}
+
+export namespace UpdateOptionGroup {
+    export type Variables = UpdateOptionGroupMutationVariables;
+    export type Mutation = UpdateOptionGroupMutation;
+    export type UpdateProductOptionGroup = NonNullable<UpdateOptionGroupMutation['updateProductOptionGroup']>;
+}
+
+export namespace DeletePromotionAdHoc1 {
+    export type Variables = DeletePromotionAdHoc1MutationVariables;
+    export type Mutation = DeletePromotionAdHoc1Mutation;
+    export type DeletePromotion = NonNullable<DeletePromotionAdHoc1Mutation['deletePromotion']>;
 }
 
 export namespace GetOrderListFulfillments {
@@ -6924,24 +7171,6 @@ export namespace GetOrderFulfillmentItems {
     export type Order = NonNullable<GetOrderFulfillmentItemsQuery['order']>;
     export type Fulfillments = NonNullable<
         NonNullable<NonNullable<GetOrderFulfillmentItemsQuery['order']>['fulfillments']>[number]
-    >;
-}
-
-export namespace CancelOrder {
-    export type Variables = CancelOrderMutationVariables;
-    export type Mutation = CancelOrderMutation;
-    export type CancelOrder = NonNullable<CancelOrderMutation['cancelOrder']>;
-    export type ErrorResultInlineFragment = DiscriminateUnion<
-        NonNullable<CancelOrderMutation['cancelOrder']>,
-        { __typename?: 'ErrorResult' }
-    >;
-}
-
-export namespace CanceledOrder {
-    export type Fragment = CanceledOrderFragment;
-    export type Lines = NonNullable<NonNullable<CanceledOrderFragment['lines']>[number]>;
-    export type Items = NonNullable<
-        NonNullable<NonNullable<NonNullable<CanceledOrderFragment['lines']>[number]>['items']>[number]
     >;
 }
 
@@ -7121,12 +7350,6 @@ export namespace GetRole {
     export type Role = NonNullable<GetRoleQuery['role']>;
 }
 
-export namespace UpdateRole {
-    export type Variables = UpdateRoleMutationVariables;
-    export type Mutation = UpdateRoleMutation;
-    export type UpdateRole = NonNullable<UpdateRoleMutation['updateRole']>;
-}
-
 export namespace DeleteRole {
     export type Variables = DeleteRoleMutationVariables;
     export type Mutation = DeleteRoleMutation;
@@ -7137,12 +7360,6 @@ export namespace Logout {
     export type Variables = LogoutMutationVariables;
     export type Mutation = LogoutMutation;
     export type Logout = NonNullable<LogoutMutation['logout']>;
-}
-
-export namespace ShippingMethod {
-    export type Fragment = ShippingMethodFragment;
-    export type Calculator = NonNullable<ShippingMethodFragment['calculator']>;
-    export type Checker = NonNullable<ShippingMethodFragment['checker']>;
 }
 
 export namespace GetShippingMethodList {
@@ -7158,12 +7375,6 @@ export namespace GetShippingMethod {
     export type Variables = GetShippingMethodQueryVariables;
     export type Query = GetShippingMethodQuery;
     export type ShippingMethod = NonNullable<GetShippingMethodQuery['shippingMethod']>;
-}
-
-export namespace CreateShippingMethod {
-    export type Variables = CreateShippingMethodMutationVariables;
-    export type Mutation = CreateShippingMethodMutation;
-    export type CreateShippingMethod = NonNullable<CreateShippingMethodMutation['createShippingMethod']>;
 }
 
 export namespace UpdateShippingMethod {

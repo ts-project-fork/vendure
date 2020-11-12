@@ -26,6 +26,7 @@ const result: PossibleTypesResultData = {
             'Fulfillment',
             'EmptyOrderLineSelectionError',
             'ItemsAlreadyFulfilledError',
+            'InsufficientStockOnHandError',
         ],
         CancelOrderResult: [
             'Order',
@@ -98,9 +99,11 @@ const result: PossibleTypesResultData = {
             'Role',
             'ShippingMethod',
             'StockAdjustment',
+            'Allocation',
             'Sale',
             'Cancellation',
             'Return',
+            'Release',
             'TaxCategory',
             'TaxRate',
             'User',
@@ -114,6 +117,7 @@ const result: PossibleTypesResultData = {
             'SettlePaymentError',
             'EmptyOrderLineSelectionError',
             'ItemsAlreadyFulfilledError',
+            'InsufficientStockOnHandError',
             'MultipleOrderError',
             'CancelActiveOrderError',
             'PaymentOrderMismatchError',
@@ -148,8 +152,8 @@ const result: PossibleTypesResultData = {
             'DateTimeCustomFieldConfig',
         ],
         SearchResultPrice: ['PriceRange', 'SinglePrice'],
-        StockMovement: ['StockAdjustment', 'Sale', 'Cancellation', 'Return'],
-        StockMovementItem: ['StockAdjustment', 'Sale', 'Cancellation', 'Return'],
+        StockMovement: ['StockAdjustment', 'Allocation', 'Sale', 'Cancellation', 'Return', 'Release'],
+        StockMovementItem: ['StockAdjustment', 'Allocation', 'Sale', 'Cancellation', 'Return', 'Release'],
     },
 };
 export default result;

@@ -29,7 +29,8 @@ import { map, mapTo, mergeMap, switchMap, take } from 'rxjs/operators';
     styleUrls: ['./facet-detail.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FacetDetailComponent extends BaseDetailComponent<FacetWithValues.Fragment>
+export class FacetDetailComponent
+    extends BaseDetailComponent<FacetWithValues.Fragment>
     implements OnInit, OnDestroy {
     customFields: CustomFieldConfig[];
     customValueFields: CustomFieldConfig[];
@@ -274,7 +275,7 @@ export class FacetDetailComponent extends BaseDetailComponent<FacetWithValues.Fr
             facet: {
                 code: facet.code,
                 visible: !facet.isPrivate,
-                name: currentTranslation ? currentTranslation.name : '',
+                name: currentTranslation?.name ?? '',
             },
         });
 

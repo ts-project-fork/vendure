@@ -42,6 +42,7 @@ export const ORDER_FRAGMENT = gql`
         id
         createdAt
         updatedAt
+        orderPlacedAt
         code
         state
         nextStates
@@ -77,6 +78,8 @@ export const ORDER_LINE_FRAGMENT = gql`
             id
             name
             sku
+            trackInventory
+            stockOnHand
         }
         adjustments {
             ...Adjustment
@@ -87,7 +90,6 @@ export const ORDER_LINE_FRAGMENT = gql`
         items {
             id
             unitPrice
-            unitPriceIncludesTax
             unitPriceWithTax
             taxRate
             refundId
@@ -96,7 +98,9 @@ export const ORDER_LINE_FRAGMENT = gql`
                 ...Fulfillment
             }
         }
-        totalPrice
+        linePrice
+        lineTax
+        linePriceWithTax
     }
 `;
 

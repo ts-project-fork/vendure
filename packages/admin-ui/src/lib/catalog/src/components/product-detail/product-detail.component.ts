@@ -11,6 +11,7 @@ import {
     DataService,
     FacetWithValues,
     flattenFacetValues,
+    GlobalFlag,
     IGNORE_CAN_DEACTIVATE_GUARD,
     LanguageCode,
     ModalService,
@@ -59,7 +60,9 @@ export interface VariantFormValue {
     priceWithTax: number;
     taxCategoryId: string;
     stockOnHand: number;
-    trackInventory: boolean;
+    useGlobalOutOfStockThreshold: boolean;
+    outOfStockThreshold: number;
+    trackInventory: GlobalFlag;
     facetValueIds: string[];
     customFields?: any;
 }
@@ -493,6 +496,8 @@ export class ProductDetailComponent
                 priceWithTax: variant.priceWithTax,
                 taxCategoryId: variant.taxCategory.id,
                 stockOnHand: variant.stockOnHand,
+                useGlobalOutOfStockThreshold: variant.useGlobalOutOfStockThreshold,
+                outOfStockThreshold: variant.outOfStockThreshold,
                 trackInventory: variant.trackInventory,
                 facetValueIds,
             };

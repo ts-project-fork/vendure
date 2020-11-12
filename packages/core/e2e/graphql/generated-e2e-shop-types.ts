@@ -289,6 +289,12 @@ export type MutationResetPasswordArgs = {
     password: Scalars['String'];
 };
 
+export enum GlobalFlag {
+    TRUE = 'TRUE',
+    FALSE = 'FALSE',
+    INHERIT = 'INHERIT',
+}
+
 export enum AdjustmentType {
     TAX = 'TAX',
     PROMOTION = 'PROMOTION',
@@ -338,6 +344,72 @@ export enum DeletionResult {
     NOT_DELETED = 'NOT_DELETED',
 }
 
+/**
+ * @description
+ * Permissions for administrators and customers. Used to control access to
+ * GraphQL resolvers via the {@link Allow} decorator.
+ *
+ * @docsCategory common
+ */
+export enum Permission {
+    /** Authenticated means simply that the user is logged in */
+    Authenticated = 'Authenticated',
+    /** SuperAdmin has unrestricted access to all operations */
+    SuperAdmin = 'SuperAdmin',
+    /** Owner means the user owns this entity, e.g. a Customer's own Order */
+    Owner = 'Owner',
+    /** Public means any unauthenticated user may perform the operation */
+    Public = 'Public',
+    /** Grants permission to create Catalog */
+    CreateCatalog = 'CreateCatalog',
+    /** Grants permission to read Catalog */
+    ReadCatalog = 'ReadCatalog',
+    /** Grants permission to update Catalog */
+    UpdateCatalog = 'UpdateCatalog',
+    /** Grants permission to delete Catalog */
+    DeleteCatalog = 'DeleteCatalog',
+    /** Grants permission to create Customer */
+    CreateCustomer = 'CreateCustomer',
+    /** Grants permission to read Customer */
+    ReadCustomer = 'ReadCustomer',
+    /** Grants permission to update Customer */
+    UpdateCustomer = 'UpdateCustomer',
+    /** Grants permission to delete Customer */
+    DeleteCustomer = 'DeleteCustomer',
+    /** Grants permission to create Administrator */
+    CreateAdministrator = 'CreateAdministrator',
+    /** Grants permission to read Administrator */
+    ReadAdministrator = 'ReadAdministrator',
+    /** Grants permission to update Administrator */
+    UpdateAdministrator = 'UpdateAdministrator',
+    /** Grants permission to delete Administrator */
+    DeleteAdministrator = 'DeleteAdministrator',
+    /** Grants permission to create Order */
+    CreateOrder = 'CreateOrder',
+    /** Grants permission to read Order */
+    ReadOrder = 'ReadOrder',
+    /** Grants permission to update Order */
+    UpdateOrder = 'UpdateOrder',
+    /** Grants permission to delete Order */
+    DeleteOrder = 'DeleteOrder',
+    /** Grants permission to create Promotion */
+    CreatePromotion = 'CreatePromotion',
+    /** Grants permission to read Promotion */
+    ReadPromotion = 'ReadPromotion',
+    /** Grants permission to update Promotion */
+    UpdatePromotion = 'UpdatePromotion',
+    /** Grants permission to delete Promotion */
+    DeletePromotion = 'DeletePromotion',
+    /** Grants permission to create Settings */
+    CreateSettings = 'CreateSettings',
+    /** Grants permission to read Settings */
+    ReadSettings = 'ReadSettings',
+    /** Grants permission to update Settings */
+    UpdateSettings = 'UpdateSettings',
+    /** Grants permission to delete Settings */
+    DeleteSettings = 'DeleteSettings',
+}
+
 export type DeletionResponse = {
     result: DeletionResult;
     message?: Maybe<Scalars['String']>;
@@ -376,6 +448,8 @@ export enum ErrorCode {
     ORDER_MODIFICATION_ERROR = 'ORDER_MODIFICATION_ERROR',
     ORDER_LIMIT_ERROR = 'ORDER_LIMIT_ERROR',
     NEGATIVE_QUANTITY_ERROR = 'NEGATIVE_QUANTITY_ERROR',
+    INSUFFICIENT_STOCK_ERROR = 'INSUFFICIENT_STOCK_ERROR',
+    INELIGIBLE_SHIPPING_METHOD_ERROR = 'INELIGIBLE_SHIPPING_METHOD_ERROR',
     ORDER_PAYMENT_STATE_ERROR = 'ORDER_PAYMENT_STATE_ERROR',
     PAYMENT_FAILED_ERROR = 'PAYMENT_FAILED_ERROR',
     PAYMENT_DECLINED_ERROR = 'PAYMENT_DECLINED_ERROR',
@@ -402,6 +476,8 @@ export type ErrorResult = {
 export type StringOperators = {
     eq?: Maybe<Scalars['String']>;
     contains?: Maybe<Scalars['String']>;
+    in?: Maybe<Array<Scalars['String']>>;
+    regex?: Maybe<Scalars['String']>;
 };
 
 export type BooleanOperators = {
@@ -1284,49 +1360,6 @@ export enum LanguageCode {
     zu = 'zu',
 }
 
-/**
- * "
- * @description
- * Permissions for administrators and customers. Used to control access to
- * GraphQL resolvers via the {@link Allow} decorator.
- *
- * @docsCategory common
- */
-export enum Permission {
-    /**  The Authenticated role means simply that the user is logged in  */
-    Authenticated = 'Authenticated',
-    /**  SuperAdmin can perform the most sensitive tasks */
-    SuperAdmin = 'SuperAdmin',
-    /**  Owner means the user owns this entity, e.g. a Customer's own Order */
-    Owner = 'Owner',
-    /**  Public means any unauthenticated user may perform the operation  */
-    Public = 'Public',
-    CreateCatalog = 'CreateCatalog',
-    ReadCatalog = 'ReadCatalog',
-    UpdateCatalog = 'UpdateCatalog',
-    DeleteCatalog = 'DeleteCatalog',
-    CreateCustomer = 'CreateCustomer',
-    ReadCustomer = 'ReadCustomer',
-    UpdateCustomer = 'UpdateCustomer',
-    DeleteCustomer = 'DeleteCustomer',
-    CreateAdministrator = 'CreateAdministrator',
-    ReadAdministrator = 'ReadAdministrator',
-    UpdateAdministrator = 'UpdateAdministrator',
-    DeleteAdministrator = 'DeleteAdministrator',
-    CreateOrder = 'CreateOrder',
-    ReadOrder = 'ReadOrder',
-    UpdateOrder = 'UpdateOrder',
-    DeleteOrder = 'DeleteOrder',
-    CreatePromotion = 'CreatePromotion',
-    ReadPromotion = 'ReadPromotion',
-    UpdatePromotion = 'UpdatePromotion',
-    DeletePromotion = 'DeletePromotion',
-    CreateSettings = 'CreateSettings',
-    ReadSettings = 'ReadSettings',
-    UpdateSettings = 'UpdateSettings',
-    DeleteSettings = 'DeleteSettings',
-}
-
 export type RegisterCustomerInput = {
     emailAddress: Scalars['String'];
     title?: Maybe<Scalars['String']>;
@@ -1371,6 +1404,20 @@ export type OrderLimitError = ErrorResult & {
 
 /** Retured when attemting to set a negative OrderLine quantity. */
 export type NegativeQuantityError = ErrorResult & {
+    errorCode: ErrorCode;
+    message: Scalars['String'];
+};
+
+/** Returned when attempting to add more items to the Order than are available */
+export type InsufficientStockError = ErrorResult & {
+    errorCode: ErrorCode;
+    message: Scalars['String'];
+    quantityAvailable: Scalars['Int'];
+    order: Order;
+};
+
+/** Returned when attempting to set a ShippingMethod for which the order is not eligible */
+export type IneligibleShippingMethodError = ErrorResult & {
     errorCode: ErrorCode;
     message: Scalars['String'];
 };
@@ -1498,11 +1545,16 @@ export type NotVerifiedError = ErrorResult & {
     message: Scalars['String'];
 };
 
-export type UpdateOrderItemsResult = Order | OrderModificationError | OrderLimitError | NegativeQuantityError;
+export type UpdateOrderItemsResult =
+    | Order
+    | OrderModificationError
+    | OrderLimitError
+    | NegativeQuantityError
+    | InsufficientStockError;
 
 export type RemoveOrderItemsResult = Order | OrderModificationError;
 
-export type SetOrderShippingMethodResult = Order | OrderModificationError;
+export type SetOrderShippingMethodResult = Order | OrderModificationError | IneligibleShippingMethodError;
 
 export type ApplyCouponCodeResult =
     | Order
@@ -1814,6 +1866,7 @@ export type GlobalSettings = {
     updatedAt: Scalars['DateTime'];
     availableLanguages: Array<LanguageCode>;
     trackInventory: Scalars['Boolean'];
+    outOfStockThreshold: Scalars['Int'];
     serverConfig: ServerConfig;
     customFields?: Maybe<Scalars['JSON']>;
 };
@@ -1823,9 +1876,16 @@ export type OrderProcessState = {
     to: Array<Scalars['String']>;
 };
 
+export type PermissionDefinition = {
+    name: Scalars['String'];
+    description: Scalars['String'];
+    assignable: Scalars['Boolean'];
+};
+
 export type ServerConfig = {
     orderProcess: Array<OrderProcessState>;
     permittedAssetTypes: Array<Scalars['String']>;
+    permissions: Array<PermissionDefinition>;
     customFieldConfig: CustomFields;
 };
 
@@ -1880,6 +1940,11 @@ export type Order = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
+    /**
+     * The date & time that the Order was placed, i.e. the Customer
+     * completed the checkout and the Order is no longer "active"
+     */
+    orderPlacedAt?: Maybe<Scalars['DateTime']>;
     /** A unique code for the Order */
     code: Scalars['String'];
     state: Scalars['String'];
@@ -1906,12 +1971,26 @@ export type Order = Node & {
     shippingMethod?: Maybe<ShippingMethod>;
     totalBeforeTax: Scalars['Int'];
     total: Scalars['Int'];
+    taxSummary: Array<OrderTaxSummary>;
     history: HistoryEntryList;
     customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type OrderHistoryArgs = {
     options?: Maybe<HistoryEntryListOptions>;
+};
+
+/**
+ * A summary of the taxes being applied to this order, grouped
+ * by taxRate.
+ */
+export type OrderTaxSummary = {
+    /** The taxRate as a percentage */
+    taxRate: Scalars['Float'];
+    /** The total net price or OrderItems to which this taxRate applies */
+    taxBase: Scalars['Int'];
+    /** The total tax being applied to the Order at this taxRate */
+    taxTotal: Scalars['Int'];
 };
 
 export type OrderAddress = {
@@ -1936,6 +2015,7 @@ export type ShippingMethodQuote = {
     id: Scalars['ID'];
     price: Scalars['Int'];
     priceWithTax: Scalars['Int'];
+    name: Scalars['String'];
     description: Scalars['String'];
     metadata?: Maybe<Scalars['JSON']>;
 };
@@ -1945,8 +2025,11 @@ export type OrderItem = Node & {
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     cancelled: Scalars['Boolean'];
+    /** The price of a single unit, excluding tax */
     unitPrice: Scalars['Int'];
+    /** The price of a single unit, including tax */
     unitPriceWithTax: Scalars['Int'];
+    /** @deprecated `unitPrice` is now always without tax */
     unitPriceIncludesTax: Scalars['Boolean'];
     taxRate: Scalars['Float'];
     adjustments: Array<Adjustment>;
@@ -1964,7 +2047,15 @@ export type OrderLine = Node & {
     unitPriceWithTax: Scalars['Int'];
     quantity: Scalars['Int'];
     items: Array<OrderItem>;
+    /** @deprecated Use `linePriceWithTax` instead */
     totalPrice: Scalars['Int'];
+    taxRate: Scalars['Float'];
+    /** The total price of the line excluding tax */
+    linePrice: Scalars['Int'];
+    /** The total tax on this line */
+    lineTax: Scalars['Int'];
+    /** The total price of the line including tax */
+    linePriceWithTax: Scalars['Int'];
     adjustments: Array<Adjustment>;
     order: Order;
     customFields?: Maybe<Scalars['JSON']>;
@@ -2008,6 +2099,7 @@ export type Fulfillment = Node & {
     state: Scalars['String'];
     method: Scalars['String'];
     trackingCode?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type PaymentMethod = Node & {
@@ -2228,10 +2320,21 @@ export type ShippingMethod = Node & {
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     code: Scalars['String'];
+    name: Scalars['String'];
     description: Scalars['String'];
     checker: ConfigurableOperation;
     calculator: ConfigurableOperation;
+    translations: Array<ShippingMethodTranslation>;
     customFields?: Maybe<Scalars['JSON']>;
+};
+
+export type ShippingMethodTranslation = {
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    languageCode: LanguageCode;
+    name: Scalars['String'];
+    description: Scalars['String'];
 };
 
 export type ShippingMethodList = PaginatedList & {
@@ -2241,6 +2344,8 @@ export type ShippingMethodList = PaginatedList & {
 
 export enum StockMovementType {
     ADJUSTMENT = 'ADJUSTMENT',
+    ALLOCATION = 'ALLOCATION',
+    RELEASE = 'RELEASE',
     SALE = 'SALE',
     CANCELLATION = 'CANCELLATION',
     RETURN = 'RETURN',
@@ -2265,7 +2370,7 @@ export type StockAdjustment = Node &
         quantity: Scalars['Int'];
     };
 
-export type Sale = Node &
+export type Allocation = Node &
     StockMovement & {
         id: Scalars['ID'];
         createdAt: Scalars['DateTime'];
@@ -2274,6 +2379,17 @@ export type Sale = Node &
         type: StockMovementType;
         quantity: Scalars['Int'];
         orderLine: OrderLine;
+    };
+
+export type Sale = Node &
+    StockMovement & {
+        id: Scalars['ID'];
+        createdAt: Scalars['DateTime'];
+        updatedAt: Scalars['DateTime'];
+        productVariant: ProductVariant;
+        type: StockMovementType;
+        quantity: Scalars['Int'];
+        orderItem: OrderItem;
     };
 
 export type Cancellation = Node &
@@ -2298,7 +2414,18 @@ export type Return = Node &
         orderItem: OrderItem;
     };
 
-export type StockMovementItem = StockAdjustment | Sale | Cancellation | Return;
+export type Release = Node &
+    StockMovement & {
+        id: Scalars['ID'];
+        createdAt: Scalars['DateTime'];
+        updatedAt: Scalars['DateTime'];
+        productVariant: ProductVariant;
+        type: StockMovementType;
+        quantity: Scalars['Int'];
+        orderItem: OrderItem;
+    };
+
+export type StockMovementItem = StockAdjustment | Allocation | Sale | Cancellation | Return | Release;
 
 export type StockMovementList = {
     items: Array<StockMovementItem>;
@@ -2483,6 +2610,7 @@ export type CustomerSortParameter = {
 export type OrderFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
+    orderPlacedAt?: Maybe<DateOperators>;
     code?: Maybe<StringOperators>;
     state?: Maybe<StringOperators>;
     active?: Maybe<BooleanOperators>;
@@ -2500,6 +2628,7 @@ export type OrderSortParameter = {
     id?: Maybe<SortOrder>;
     createdAt?: Maybe<SortOrder>;
     updatedAt?: Maybe<SortOrder>;
+    orderPlacedAt?: Maybe<SortOrder>;
     code?: Maybe<SortOrder>;
     state?: Maybe<SortOrder>;
     totalQuantity?: Maybe<SortOrder>;
@@ -2534,6 +2663,7 @@ export type CustomFields = {
     Customer: Array<CustomFieldConfig>;
     Facet: Array<CustomFieldConfig>;
     FacetValue: Array<CustomFieldConfig>;
+    Fulfillment: Array<CustomFieldConfig>;
     GlobalSettings: Array<CustomFieldConfig>;
     Order: Array<CustomFieldConfig>;
     OrderLine: Array<CustomFieldConfig>;
@@ -2590,7 +2720,10 @@ export type AddItemToOrderMutation = {
         | UpdatedOrderFragment
         | Pick<OrderModificationError, 'errorCode' | 'message'>
         | Pick<OrderLimitError, 'errorCode' | 'message'>
-        | Pick<NegativeQuantityError, 'errorCode' | 'message'>;
+        | Pick<NegativeQuantityError, 'errorCode' | 'message'>
+        | (Pick<InsufficientStockError, 'errorCode' | 'message' | 'quantityAvailable'> & {
+              order: UpdatedOrderFragment;
+          });
 };
 
 export type SearchProductsShopQueryVariables = Exact<{
@@ -2751,6 +2884,31 @@ export type GetActiveOrderQueryVariables = Exact<{ [key: string]: never }>;
 
 export type GetActiveOrderQuery = { activeOrder?: Maybe<TestOrderFragmentFragment> };
 
+export type GetActiveOrderWithPriceDataQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetActiveOrderWithPriceDataQuery = {
+    activeOrder?: Maybe<
+        Pick<Order, 'id' | 'subTotalBeforeTax' | 'subTotal' | 'totalBeforeTax' | 'total'> & {
+            lines: Array<
+                Pick<
+                    OrderLine,
+                    | 'id'
+                    | 'unitPrice'
+                    | 'unitPriceWithTax'
+                    | 'taxRate'
+                    | 'linePrice'
+                    | 'lineTax'
+                    | 'linePriceWithTax'
+                > & {
+                    items: Array<Pick<OrderItem, 'id' | 'unitPrice' | 'unitPriceWithTax' | 'taxRate'>>;
+                    adjustments: Array<Pick<Adjustment, 'amount' | 'type'>>;
+                }
+            >;
+            taxSummary: Array<Pick<OrderTaxSummary, 'taxRate' | 'taxBase' | 'taxTotal'>>;
+        }
+    >;
+};
+
 export type AdjustItemQuantityMutationVariables = Exact<{
     orderLineId: Scalars['ID'];
     quantity: Scalars['Int'];
@@ -2761,7 +2919,8 @@ export type AdjustItemQuantityMutation = {
         | TestOrderFragmentFragment
         | Pick<OrderModificationError, 'errorCode' | 'message'>
         | Pick<OrderLimitError, 'errorCode' | 'message'>
-        | Pick<NegativeQuantityError, 'errorCode' | 'message'>;
+        | Pick<NegativeQuantityError, 'errorCode' | 'message'>
+        | Pick<InsufficientStockError, 'errorCode' | 'message'>;
 };
 
 export type RemoveItemFromOrderMutationVariables = Exact<{
@@ -2775,7 +2934,7 @@ export type RemoveItemFromOrderMutation = {
 export type GetShippingMethodsQueryVariables = Exact<{ [key: string]: never }>;
 
 export type GetShippingMethodsQuery = {
-    eligibleShippingMethods: Array<Pick<ShippingMethodQuote, 'id' | 'price' | 'description'>>;
+    eligibleShippingMethods: Array<Pick<ShippingMethodQuote, 'id' | 'price' | 'name' | 'description'>>;
 };
 
 export type SetShippingMethodMutationVariables = Exact<{
@@ -2783,7 +2942,10 @@ export type SetShippingMethodMutationVariables = Exact<{
 }>;
 
 export type SetShippingMethodMutation = {
-    setOrderShippingMethod: TestOrderFragmentFragment | Pick<OrderModificationError, 'errorCode' | 'message'>;
+    setOrderShippingMethod:
+        | TestOrderFragmentFragment
+        | Pick<OrderModificationError, 'errorCode' | 'message'>
+        | Pick<IneligibleShippingMethodError, 'errorCode' | 'message'>;
 };
 
 export type ActiveOrderCustomerFragment = Pick<Order, 'id'> & {
@@ -2901,7 +3063,7 @@ export type AddPaymentToOrderMutation = {
         | Pick<OrderPaymentStateError, 'errorCode' | 'message'>
         | Pick<PaymentFailedError, 'errorCode' | 'message' | 'paymentErrorMessage'>
         | Pick<PaymentDeclinedError, 'errorCode' | 'message' | 'paymentErrorMessage'>
-        | Pick<OrderStateTransitionError, 'errorCode' | 'message'>
+        | Pick<OrderStateTransitionError, 'errorCode' | 'message' | 'transitionError'>
     >;
 };
 
@@ -3012,6 +3174,16 @@ export namespace AddItemToOrder {
     export type ErrorResultInlineFragment = DiscriminateUnion<
         NonNullable<AddItemToOrderMutation['addItemToOrder']>,
         { __typename?: 'ErrorResult' }
+    >;
+    export type InsufficientStockErrorInlineFragment = DiscriminateUnion<
+        NonNullable<AddItemToOrderMutation['addItemToOrder']>,
+        { __typename?: 'InsufficientStockError' }
+    >;
+    export type Order = NonNullable<
+        DiscriminateUnion<
+            NonNullable<AddItemToOrderMutation['addItemToOrder']>,
+            { __typename?: 'InsufficientStockError' }
+        >['order']
     >;
 }
 
@@ -3196,6 +3368,32 @@ export namespace GetActiveOrder {
     export type ActiveOrder = NonNullable<GetActiveOrderQuery['activeOrder']>;
 }
 
+export namespace GetActiveOrderWithPriceData {
+    export type Variables = GetActiveOrderWithPriceDataQueryVariables;
+    export type Query = GetActiveOrderWithPriceDataQuery;
+    export type ActiveOrder = NonNullable<GetActiveOrderWithPriceDataQuery['activeOrder']>;
+    export type Lines = NonNullable<
+        NonNullable<NonNullable<GetActiveOrderWithPriceDataQuery['activeOrder']>['lines']>[number]
+    >;
+    export type Items = NonNullable<
+        NonNullable<
+            NonNullable<
+                NonNullable<NonNullable<GetActiveOrderWithPriceDataQuery['activeOrder']>['lines']>[number]
+            >['items']
+        >[number]
+    >;
+    export type Adjustments = NonNullable<
+        NonNullable<
+            NonNullable<
+                NonNullable<NonNullable<GetActiveOrderWithPriceDataQuery['activeOrder']>['lines']>[number]
+            >['adjustments']
+        >[number]
+    >;
+    export type TaxSummary = NonNullable<
+        NonNullable<NonNullable<GetActiveOrderWithPriceDataQuery['activeOrder']>['taxSummary']>[number]
+    >;
+}
+
 export namespace AdjustItemQuantity {
     export type Variables = AdjustItemQuantityMutationVariables;
     export type Mutation = AdjustItemQuantityMutation;
@@ -3327,6 +3525,10 @@ export namespace AddPaymentToOrder {
     export type PaymentFailedErrorInlineFragment = DiscriminateUnion<
         NonNullable<AddPaymentToOrderMutation['addPaymentToOrder']>,
         { __typename?: 'PaymentFailedError' }
+    >;
+    export type OrderStateTransitionErrorInlineFragment = DiscriminateUnion<
+        NonNullable<AddPaymentToOrderMutation['addPaymentToOrder']>,
+        { __typename?: 'OrderStateTransitionError' }
     >;
 }
 

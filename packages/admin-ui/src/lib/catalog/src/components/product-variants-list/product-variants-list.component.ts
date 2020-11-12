@@ -13,9 +13,11 @@ import {
 import { FormArray, FormGroup } from '@angular/forms';
 import {
     CustomFieldConfig,
+    DataService,
     FacetValue,
     FacetWithValues,
     flattenFacetValues,
+    GlobalFlag,
     LanguageCode,
     ModalService,
     ProductOptionFragment,
@@ -62,12 +64,24 @@ export class ProductVariantsListComponent implements OnChanges, OnInit, OnDestro
         itemsPerPage: 10,
     };
     formGroupMap = new Map<string, FormGroup>();
+    GlobalFlag = GlobalFlag;
+    globalTrackInventory: boolean;
+    globalOutOfStockThreshold: number;
     private facetValues: FacetValue.Fragment[];
     private subscription: Subscription;
 
-    constructor(private changeDetector: ChangeDetectorRef, private modalService: ModalService) {}
+    constructor(
+        private changeDetector: ChangeDetectorRef,
+        private modalService: ModalService,
+        private dataService: DataService,
+    ) {}
 
     ngOnInit() {
+        this.dataService.settings.getGlobalSettings('cache-first').single$.subscribe(({ globalSettings }) => {
+            this.globalTrackInventory = globalSettings.trackInventory;
+            this.globalOutOfStockThreshold = globalSettings.outOfStockThreshold;
+            this.changeDetector.markForCheck();
+        });
         this.subscription = this.formArray.valueChanges.subscribe(() => this.changeDetector.markForCheck());
 
         this.subscription.add(
@@ -104,6 +118,14 @@ export class ProductVariantsListComponent implements OnChanges, OnInit, OnDestro
 
     trackById(index: number, item: ProductWithVariants.Variants) {
         return item.id;
+    }
+
+    inventoryIsNotTracked(formGroup: FormGroup): boolean {
+        const trackInventory = formGroup.get('trackInventory')?.value;
+        return (
+            trackInventory === GlobalFlag.FALSE ||
+            (trackInventory === GlobalFlag.INHERIT && this.globalTrackInventory === false)
+        );
     }
 
     getTaxCategoryName(group: FormGroup): string {

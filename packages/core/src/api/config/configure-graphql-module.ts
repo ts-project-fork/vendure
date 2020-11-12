@@ -28,6 +28,7 @@ import { TranslateErrorsPlugin } from '../middleware/translate-errors-plugin';
 import { generateAuthenticationTypes } from './generate-auth-types';
 import { generateErrorCodeEnum } from './generate-error-code-enum';
 import { generateListOptions } from './generate-list-options';
+import { generatePermissionEnum } from './generate-permissions';
 import {
     addGraphQLCustomFields,
     addOrderLineCustomFieldsInput,
@@ -91,12 +92,16 @@ async function createGraphQLOptions(
             switch (value.type) {
                 case StockMovementType.ADJUSTMENT:
                     return 'StockAdjustment';
+                case StockMovementType.ALLOCATION:
+                    return 'Allocation';
                 case StockMovementType.SALE:
                     return 'Sale';
                 case StockMovementType.CANCELLATION:
                     return 'Cancellation';
                 case StockMovementType.RETURN:
                     return 'Return';
+                case StockMovementType.RELEASE:
+                    return 'Release';
             }
         },
     };
@@ -186,6 +191,7 @@ async function createGraphQLOptions(
             .map(e => (typeof e.schema === 'function' ? e.schema() : e.schema))
             .filter(notNullOrUndefined)
             .forEach(documentNode => (schema = extendSchema(schema, documentNode)));
+        schema = generatePermissionEnum(schema, configService.authOptions.customPermissions);
         schema = generateListOptions(schema);
         schema = addGraphQLCustomFields(schema, customFields, apiType === 'shop');
         schema = addServerConfigCustomFields(schema, customFields);

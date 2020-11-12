@@ -422,7 +422,13 @@ export const GLOBAL_SETTINGS_FRAGMENT = gql`
         id
         availableLanguages
         trackInventory
+        outOfStockThreshold
         serverConfig {
+            permissions {
+                name
+                description
+                assignable
+            }
             orderProcess {
                 name
             }
@@ -561,6 +567,11 @@ export const GET_SERVER_CONFIG = gql`
                     to
                 }
                 permittedAssetTypes
+                permissions {
+                    name
+                    description
+                    assignable
+                }
                 customFieldConfig {
                     Address {
                         ...CustomFields
@@ -575,6 +586,9 @@ export const GET_SERVER_CONFIG = gql`
                         ...CustomFields
                     }
                     FacetValue {
+                        ...CustomFields
+                    }
+                    Fulfillment {
                         ...CustomFields
                     }
                     GlobalSettings {

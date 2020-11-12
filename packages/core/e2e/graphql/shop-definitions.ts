@@ -87,6 +87,12 @@ export const ADD_ITEM_TO_ORDER = gql`
                 errorCode
                 message
             }
+            ... on InsufficientStockError {
+                quantityAvailable
+                order {
+                    ...UpdatedOrder
+                }
+            }
         }
     }
     ${UPDATED_ORDER_FRAGMENT}
@@ -290,6 +296,42 @@ export const GET_ACTIVE_ORDER = gql`
     ${TEST_ORDER_FRAGMENT}
 `;
 
+export const GET_ACTIVE_ORDER_WITH_PRICE_DATA = gql`
+    query GetActiveOrderWithPriceData {
+        activeOrder {
+            id
+            subTotalBeforeTax
+            subTotal
+            totalBeforeTax
+            total
+            lines {
+                id
+                unitPrice
+                unitPriceWithTax
+                taxRate
+                linePrice
+                lineTax
+                linePriceWithTax
+                items {
+                    id
+                    unitPrice
+                    unitPriceWithTax
+                    taxRate
+                }
+                adjustments {
+                    amount
+                    type
+                }
+            }
+            taxSummary {
+                taxRate
+                taxBase
+                taxTotal
+            }
+        }
+    }
+`;
+
 export const ADJUST_ITEM_QUANTITY = gql`
     mutation AdjustItemQuantity($orderLineId: ID!, $quantity: Int!) {
         adjustOrderLine(orderLineId: $orderLineId, quantity: $quantity) {
@@ -321,6 +363,7 @@ export const GET_ELIGIBLE_SHIPPING_METHODS = gql`
         eligibleShippingMethods {
             id
             price
+            name
             description
         }
     }
@@ -487,6 +530,9 @@ export const ADD_PAYMENT = gql`
             }
             ... on PaymentFailedError {
                 paymentErrorMessage
+            }
+            ... on OrderStateTransitionError {
+                transitionError
             }
         }
     }

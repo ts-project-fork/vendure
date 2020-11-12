@@ -22,7 +22,6 @@ import {
     UpdateCountry,
 } from './graphql/generated-e2e-admin-types';
 import {
-    ActiveOrderCustomer,
     ActiveOrderCustomerFragment,
     AddItemToOrder,
     AddPaymentToOrder,
@@ -37,7 +36,6 @@ import {
     GetNextOrderStates,
     GetOrderByCode,
     GetShippingMethods,
-    PaymentDeclinedError,
     RemoveAllOrderLines,
     RemoveItemFromOrder,
     SetBillingAddress,
@@ -75,7 +73,6 @@ import {
     SET_CUSTOMER,
     SET_SHIPPING_ADDRESS,
     SET_SHIPPING_METHOD,
-    TEST_ORDER_FRAGMENT,
     TRANSITION_TO_STATE,
     UPDATED_ORDER_FRAGMENT,
 } from './graphql/shop-definitions';
@@ -847,8 +844,8 @@ describe('Shop orders', () => {
                 shippingMethods = result.eligibleShippingMethods;
 
                 expect(shippingMethods).toEqual([
-                    { id: 'T_1', price: 500, description: 'Standard Shipping' },
-                    { id: 'T_2', price: 1000, description: 'Express Shipping' },
+                    { id: 'T_1', price: 500, name: 'Standard Shipping', description: '' },
+                    { id: 'T_2', price: 1000, name: 'Express Shipping', description: '' },
                 ]);
             });
 

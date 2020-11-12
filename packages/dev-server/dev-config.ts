@@ -8,6 +8,7 @@ import {
     DefaultSearchPlugin,
     examplePaymentHandler,
     LogLevel,
+    PermissionDefinition,
     VendureConfig,
 } from '@vendure/core';
 import { defaultEmailHandlers, EmailPlugin } from '@vendure/email-plugin';
@@ -40,6 +41,7 @@ export const devConfig: VendureConfig = {
         tokenMethod: 'cookie',
         sessionSecret: 'some-secret',
         requireVerification: true,
+        customPermissions: [],
     },
     dbConnectionOptions: {
         synchronize: false,
@@ -50,7 +52,12 @@ export const devConfig: VendureConfig = {
     paymentOptions: {
         paymentMethodHandlers: [examplePaymentHandler],
     },
-    customFields: {},
+    customFields: {
+        ShippingMethod: [
+            { name: 'isGood', type: 'boolean' },
+            { name: 'localName', type: 'localeString' },
+        ],
+    },
     logger: new DefaultLogger({ level: LogLevel.Info }),
     importExportOptions: {
         importAssetsDir: path.join(__dirname, 'import-assets'),
@@ -118,8 +125,8 @@ function getDbConfig(): ConnectionOptions {
         default:
             console.log('Using mysql connection');
             return {
-                synchronize: false,
-                type: 'mysql',
+                synchronize: true,
+                type: 'mariadb',
                 host: '127.0.0.1',
                 port: 3306,
                 username: 'root',

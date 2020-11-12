@@ -3,6 +3,12 @@ scalar JSON
 scalar DateTime
 scalar Upload
 
+enum GlobalFlag {
+    TRUE
+    FALSE
+    INHERIT
+}
+
 enum AdjustmentType {
     TAX
     PROMOTION
@@ -52,6 +58,11 @@ enum DeletionResult {
     NOT_DELETED
 }
 
+# Populated at run-time
+enum Permission {
+    Placeholder
+}
+
 type DeletionResponse {
     result: DeletionResult!
     message: String
@@ -93,6 +104,8 @@ interface ErrorResult {
 input StringOperators {
     eq: String
     contains: String
+    in: [String!]
+    regex: String
 }
 
 input BooleanOperators {

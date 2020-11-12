@@ -12,6 +12,7 @@ import { Order } from '../../../entity/order/order.entity';
 import { Promotion } from '../../../entity/promotion/promotion.entity';
 import { ShippingMethod } from '../../../entity/shipping-method/shipping-method.entity';
 import { Zone } from '../../../entity/zone/zone.entity';
+import { ShippingMethodService } from '../../services/shipping-method.service';
 import { TaxRateService } from '../../services/tax-rate.service';
 import { ZoneService } from '../../services/zone.service';
 import { TransactionalConnection } from '../../transaction/transactional-connection';
@@ -26,6 +27,7 @@ export class OrderCalculator {
         private zoneService: ZoneService,
         private taxRateService: TaxRateService,
         private taxCalculator: TaxCalculator,
+        private shippingMethodService: ShippingMethodService,
         private shippingCalculator: ShippingCalculator,
     ) {}
 
@@ -42,7 +44,7 @@ export class OrderCalculator {
     ): Promise<OrderItem[]> {
         const { taxZoneStrategy } = this.configService.taxOptions;
         const zones = this.zoneService.findAll(ctx);
-        const activeTaxZone = taxZoneStrategy.determineTaxZone(zones, ctx.channel, order);
+        const activeTaxZone = taxZoneStrategy.determineTaxZone(ctx, zones, ctx.channel, order);
         let taxZoneChanged = false;
         if (!activeTaxZone) {
             throw new InternalServerError(`error.no-active-tax-zone`);
@@ -108,21 +110,11 @@ export class OrderCalculator {
         line.clearAdjustments(AdjustmentType.TAX);
 
         const applicableTaxRate = getTaxRate(line.taxCategory);
-        const { price, priceIncludesTax, priceWithTax, priceWithoutTax } = this.taxCalculator.calculate(
-            line.unitPrice,
-            line.taxCategory,
-            activeZone,
-            ctx,
-        );
-
         for (const item of line.activeItems) {
-            item.unitPriceIncludesTax = priceIncludesTax;
             item.taxRate = applicableTaxRate.value;
-            if (!priceIncludesTax) {
-                item.pendingAdjustments = item.pendingAdjustments.concat(
-                    applicableTaxRate.apply(item.unitPriceWithPromotions),
-                );
-            }
+            item.pendingAdjustments = item.pendingAdjustments.concat(
+                applicableTaxRate.apply(item.unitPriceWithPromotions),
+            );
         }
     }
 
@@ -199,7 +191,7 @@ export class OrderCalculator {
                 // as to render later promotions no longer applicable.
                 if (await promotion.test(ctx, order)) {
                     for (const item of line.items) {
-                        const adjustment = await promotion.apply({
+                        const adjustment = await promotion.apply(ctx, {
                             orderItem: item,
                             orderLine: line,
                         });
@@ -262,7 +254,7 @@ export class OrderCalculator {
                 // re-test the promotion on each iteration, since the order total
                 // may be modified by a previously-applied promotion
                 if (await promotion.test(ctx, order)) {
-                    const adjustment = await promotion.apply({ order });
+                    const adjustment = await promotion.apply(ctx, { order });
                     if (adjustment) {
                         order.pendingAdjustments = order.pendingAdjustments.concat(adjustment);
                     }
@@ -273,16 +265,28 @@ export class OrderCalculator {
     }
 
     private async applyShipping(ctx: RequestContext, order: Order) {
-        const results = await this.shippingCalculator.getEligibleShippingMethods(ctx, order);
-        const currentShippingMethod = order.shippingMethod;
-        if (results && results.length && currentShippingMethod) {
-            let selected: { method: ShippingMethod; result: ShippingCalculationResult } | undefined;
-            selected = results.find(r => idsAreEqual(r.method.id, currentShippingMethod.id));
-            if (!selected) {
-                selected = results[0];
+        const currentShippingMethod =
+            order.shippingMethodId && (await this.shippingMethodService.findOne(ctx, order.shippingMethodId));
+        if (!currentShippingMethod) {
+            return;
+        }
+        const currentMethodStillEligible = await currentShippingMethod.test(ctx, order);
+        if (currentMethodStillEligible) {
+            const result = await currentShippingMethod.apply(ctx, order);
+            if (result) {
+                order.shipping = result.price;
+                order.shippingWithTax = result.priceWithTax;
             }
-            order.shipping = selected.result.price;
-            order.shippingWithTax = selected.result.priceWithTax;
+            return;
+        }
+        const results = await this.shippingCalculator.getEligibleShippingMethods(ctx, order, [
+            currentShippingMethod.id,
+        ]);
+        if (results && results.length) {
+            const cheapest = results[0];
+            order.shipping = cheapest.result.price;
+            order.shippingWithTax = cheapest.result.priceWithTax;
+            order.shippingMethod = cheapest.method;
         }
     }
 
@@ -291,7 +295,7 @@ export class OrderCalculator {
         let totalTax = 0;
 
         for (const line of order.lines) {
-            totalPrice += line.totalPrice;
+            totalPrice += line.linePriceWithTax;
             totalTax += line.lineTax;
         }
         const totalPriceBeforeTax = totalPrice - totalTax;
