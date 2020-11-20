@@ -18,7 +18,8 @@ import { debounceTime, switchMap, takeUntil } from 'rxjs/operators';
     templateUrl: './customer-list.component.html',
     styleUrls: ['./customer-list.component.scss'],
 })
-export class CustomerListComponent extends BaseListComponent<GetCustomerList.Query, GetCustomerList.Items>
+export class CustomerListComponent
+    extends BaseListComponent<GetCustomerList.Query, GetCustomerList.Items>
     implements OnInit {
     searchTerm = new FormControl('');
     constructor(
@@ -30,7 +31,7 @@ export class CustomerListComponent extends BaseListComponent<GetCustomerList.Que
     ) {
         super(router, route);
         super.setQueryFn(
-            (...args: any[]) => this.dataService.customer.getCustomerList(...args),
+            (...args: any[]) => this.dataService.customer.getCustomerList(...args).refetchOnChannelChange(),
             data => data.customers,
             (skip, take) => ({
                 options: {

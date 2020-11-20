@@ -19,6 +19,7 @@ export type Scalars = {
 export type Query = {
     administrators: AdministratorList;
     administrator?: Maybe<Administrator>;
+    activeAdministrator?: Maybe<Administrator>;
     /** Get a list of Assets */
     assets: AssetList;
     /** Get a single Asset by id */
@@ -243,6 +244,8 @@ export type Mutation = {
     createAdministrator: Administrator;
     /** Update an existing Administrator */
     updateAdministrator: Administrator;
+    /** Update the active (currently logged-in) Administrator */
+    updateActiveAdministrator: Administrator;
     /** Delete an Administrator */
     deleteAdministrator: DeletionResponse;
     /** Assign a Role to an Administrator */
@@ -408,6 +411,10 @@ export type MutationCreateAdministratorArgs = {
 
 export type MutationUpdateAdministratorArgs = {
     input: UpdateAdministratorInput;
+};
+
+export type MutationUpdateActiveAdministratorArgs = {
+    input: UpdateActiveAdministratorInput;
 };
 
 export type MutationDeleteAdministratorArgs = {
@@ -792,6 +799,13 @@ export type UpdateAdministratorInput = {
     emailAddress?: Maybe<Scalars['String']>;
     password?: Maybe<Scalars['String']>;
     roleIds?: Maybe<Array<Scalars['ID']>>;
+};
+
+export type UpdateActiveAdministratorInput = {
+    firstName?: Maybe<Scalars['String']>;
+    lastName?: Maybe<Scalars['String']>;
+    emailAddress?: Maybe<Scalars['String']>;
+    password?: Maybe<Scalars['String']>;
 };
 
 export type MimeTypeError = ErrorResult & {
@@ -4009,6 +4023,16 @@ export type GetAdministratorQueryVariables = Exact<{
 
 export type GetAdministratorQuery = { administrator?: Maybe<AdministratorFragment> };
 
+export type ActiveAdministratorQueryVariables = Exact<{ [key: string]: never }>;
+
+export type ActiveAdministratorQuery = { activeAdministrator?: Maybe<AdministratorFragment> };
+
+export type UpdateActiveAdministratorMutationVariables = Exact<{
+    input: UpdateActiveAdministratorInput;
+}>;
+
+export type UpdateActiveAdministratorMutation = { updateActiveAdministrator: AdministratorFragment };
+
 export type UpdateAdministratorMutationVariables = Exact<{
     input: UpdateAdministratorInput;
 }>;
@@ -5740,6 +5764,20 @@ export namespace GetAdministrator {
     export type Variables = GetAdministratorQueryVariables;
     export type Query = GetAdministratorQuery;
     export type Administrator = NonNullable<GetAdministratorQuery['administrator']>;
+}
+
+export namespace ActiveAdministrator {
+    export type Variables = ActiveAdministratorQueryVariables;
+    export type Query = ActiveAdministratorQuery;
+    export type ActiveAdministrator = NonNullable<ActiveAdministratorQuery['activeAdministrator']>;
+}
+
+export namespace UpdateActiveAdministrator {
+    export type Variables = UpdateActiveAdministratorMutationVariables;
+    export type Mutation = UpdateActiveAdministratorMutation;
+    export type UpdateActiveAdministrator = NonNullable<
+        UpdateActiveAdministratorMutation['updateActiveAdministrator']
+    >;
 }
 
 export namespace UpdateAdministrator {
