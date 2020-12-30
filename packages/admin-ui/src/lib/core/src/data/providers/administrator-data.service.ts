@@ -1,3 +1,5 @@
+import { FetchPolicy } from '@apollo/client';
+
 import {
     CreateAdministrator,
     CreateAdministratorInput,
@@ -49,8 +51,12 @@ export class AdministratorDataService {
         );
     }
 
-    getActiveAdministrator() {
-        return this.baseDataService.query<GetActiveAdministrator.Query>(GET_ACTIVE_ADMINISTRATOR);
+    getActiveAdministrator(fetchPolicy: FetchPolicy = 'cache-first') {
+        return this.baseDataService.query<GetActiveAdministrator.Query>(
+            GET_ACTIVE_ADMINISTRATOR,
+            {},
+            fetchPolicy,
+        );
     }
 
     getAdministrator(id: string) {

@@ -14,12 +14,14 @@ import { WorkerMessage } from '../../../worker/types';
 import { WorkerService } from '../../../worker/worker.service';
 import {
     AssignProductToChannelMessage,
+    AssignVariantToChannelMessage,
     DeleteAssetMessage,
     DeleteProductMessage,
     DeleteVariantMessage,
     ReindexMessage,
     ReindexMessageResponse,
     RemoveProductFromChannelMessage,
+    RemoveVariantFromChannelMessage,
     UpdateAssetMessage,
     UpdateIndexQueueJobData,
     UpdateProductMessage,
@@ -73,6 +75,12 @@ export class SearchIndexService {
                         break;
                     case 'remove-product-from-channel':
                         this.sendMessage(job, new RemoveProductFromChannelMessage(data));
+                        break;
+                    case 'assign-variant-to-channel':
+                        this.sendMessage(job, new AssignVariantToChannelMessage(data));
+                        break;
+                    case 'remove-variant-from-channel':
+                        this.sendMessage(job, new RemoveVariantFromChannelMessage(data));
                         break;
                     default:
                         assertNever(data);
@@ -133,6 +141,24 @@ export class SearchIndexService {
         });
     }
 
+    assignVariantToChannel(ctx: RequestContext, productVariantId: ID, channelId: ID) {
+        this.addJobToQueue({
+            type: 'assign-variant-to-channel',
+            ctx: ctx.serialize(),
+            productVariantId,
+            channelId,
+        });
+    }
+
+    removeVariantFromChannel(ctx: RequestContext, productVariantId: ID, channelId: ID) {
+        this.addJobToQueue({
+            type: 'remove-variant-from-channel',
+            ctx: ctx.serialize(),
+            productVariantId,
+            channelId,
+        });
+    }
+
     private addJobToQueue(data: UpdateIndexQueueJobData) {
         if (updateIndexQueue) {
             return updateIndexQueue.add(data);
@@ -160,7 +186,7 @@ export class SearchIndexService {
                 }
                 duration = response.duration;
                 completed = response.completed;
-                const progress = Math.ceil((completed / total) * 100);
+                const progress = total === 0 ? 100 : Math.ceil((completed / total) * 100);
                 job.setProgress(progress);
             },
             complete: () => {

@@ -1,6 +1,7 @@
 import {
     defaultShippingCalculator,
     defaultShippingEligibilityChecker,
+    manualFulfillmentHandler,
     ShippingCalculator,
     ShippingEligibilityChecker,
 } from '@vendure/core';
@@ -81,12 +82,13 @@ const calculator = new ShippingCalculator({
     calculate: ctx => {
         return {
             price: 10,
-            priceWithTax: 12,
+            priceIncludesTax: false,
+            taxRate: 20,
         };
     },
 });
 
-describe('ShippingMethod resolver', () => {
+describe('ShippingMethod eligibility', () => {
     const { server, adminClient, shopClient } = createTestEnvironment({
         ...testConfig,
         shippingOptions: {
@@ -97,7 +99,7 @@ describe('ShippingMethod resolver', () => {
 
     const orderGuard: ErrorResultGuard<
         UpdatedOrderFragment | TestOrderFragmentFragment
-    > = createErrorResultGuard<UpdatedOrderFragment>(input => !!input.lines);
+    > = createErrorResultGuard(input => !!input.lines);
 
     let singleLineShippingMethod: ShippingMethodFragment;
     let multiLineShippingMethod: ShippingMethodFragment;
@@ -120,6 +122,7 @@ describe('ShippingMethod resolver', () => {
         >(CREATE_SHIPPING_METHOD, {
             input: {
                 code: 'single-line',
+                fulfillmentHandler: manualFulfillmentHandler.code,
                 checker: {
                     code: checker1.code,
                     arguments: [],
@@ -141,6 +144,7 @@ describe('ShippingMethod resolver', () => {
         >(CREATE_SHIPPING_METHOD, {
             input: {
                 code: 'multi-line',
+                fulfillmentHandler: manualFulfillmentHandler.code,
                 checker: {
                     code: checker2.code,
                     arguments: [],
@@ -162,6 +166,7 @@ describe('ShippingMethod resolver', () => {
         >(CREATE_SHIPPING_METHOD, {
             input: {
                 code: 'optimized',
+                fulfillmentHandler: manualFulfillmentHandler.code,
                 checker: {
                     code: checker3.code,
                     arguments: [],
@@ -306,7 +311,7 @@ describe('ShippingMethod resolver', () => {
 
             const { activeOrder } = await shopClient.query<GetActiveOrder.Query>(GET_ACTIVE_ORDER);
             // multiLineShippingMethod assigned as a fallback
-            expect(activeOrder?.shippingMethod?.id).toBe(multiLineShippingMethod.id);
+            expect(activeOrder?.shippingLines?.[0]?.shippingMethod?.id).toBe(multiLineShippingMethod.id);
 
             await shopClient.query<AdjustItemQuantity.Mutation, AdjustItemQuantity.Variables>(
                 ADJUST_ITEM_QUANTITY,
@@ -336,7 +341,7 @@ describe('ShippingMethod resolver', () => {
             expect(check2Spy).toHaveBeenCalledTimes(3);
 
             // Falls back to the first eligible shipping method
-            expect(removeOrderLine.shippingMethod?.id).toBe(singleLineShippingMethod.id);
+            expect(removeOrderLine.shippingLines[0].shippingMethod?.id).toBe(singleLineShippingMethod.id);
         });
     });
 

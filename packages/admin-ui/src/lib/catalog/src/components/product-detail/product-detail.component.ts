@@ -56,7 +56,6 @@ export interface VariantFormValue {
     sku: string;
     name: string;
     price: number;
-    priceIncludesTax: boolean;
     priceWithTax: number;
     taxCategoryId: string;
     stockOnHand: number;
@@ -99,6 +98,7 @@ export class ProductDetailComponent
     selectedVariantIds: string[] = [];
     variantDisplayMode: 'card' | 'table' = 'card';
     createVariantsConfig: CreateProductVariantsConfig = { groups: [], variants: [] };
+    channelPriceIncludesTax$: Observable<boolean>;
 
     constructor(
         route: ActivatedRoute,
@@ -183,6 +183,11 @@ export class ProductDetailComponent
 
         this.facetValues$ = merge(productFacetValues$, formChangeFacetValues$);
         this.productChannels$ = this.product$.pipe(map(p => p.channels));
+        this.channelPriceIncludesTax$ = this.dataService.settings
+            .getActiveChannel('cache-first')
+            .refetchOnChannelChange()
+            .mapStream(data => data.activeChannel.pricesIncludeTax)
+            .pipe(shareReplay(1));
     }
 
     ngOnDestroy() {
@@ -204,13 +209,19 @@ export class ProductDetailComponent
     }
 
     assignToChannel() {
-        this.modalService
-            .fromComponent(AssignProductsToChannelDialogComponent, {
-                size: 'lg',
-                locals: {
-                    productIds: [this.id],
-                },
-            })
+        this.productChannels$
+            .pipe(
+                take(1),
+                switchMap(channels => {
+                    return this.modalService.fromComponent(AssignProductsToChannelDialogComponent, {
+                        size: 'lg',
+                        locals: {
+                            productIds: [this.id],
+                            currentChannelIds: channels.map(c => c.id),
+                        },
+                    });
+                }),
+            )
             .subscribe();
     }
 
@@ -239,6 +250,54 @@ export class ProductDetailComponent
                 },
                 err => {
                     this.notificationService.error(_('catalog.notify-remove-product-from-channel-error'));
+                },
+            );
+    }
+
+    assignVariantToChannel(variant: ProductWithVariants.Variants) {
+        return this.modalService
+            .fromComponent(AssignProductsToChannelDialogComponent, {
+                size: 'lg',
+                locals: {
+                    productIds: [this.id],
+                    productVariantIds: [variant.id],
+                    currentChannelIds: variant.channels.map(c => c.id),
+                },
+            })
+            .subscribe();
+    }
+
+    removeVariantFromChannel({
+        channelId,
+        variant,
+    }: {
+        channelId: string;
+        variant: ProductWithVariants.Variants;
+    }) {
+        this.modalService
+            .dialog({
+                title: _('catalog.remove-product-variant-from-channel'),
+                buttons: [
+                    { type: 'secondary', label: _('common.cancel') },
+                    { type: 'danger', label: _('catalog.remove-from-channel'), returnValue: true },
+                ],
+            })
+            .pipe(
+                switchMap(response =>
+                    response
+                        ? this.dataService.product.removeVariantsFromChannel({
+                              channelId,
+                              productVariantIds: [variant.id],
+                          })
+                        : EMPTY,
+                ),
+            )
+            .subscribe(
+                () => {
+                    this.notificationService.success(_('catalog.notify-remove-variant-from-channel-success'));
+                },
+                err => {
+                    this.notificationService.error(_('catalog.notify-remove-variant-from-channel-error'));
                 },
             );
     }
@@ -401,10 +460,10 @@ export class ProductDetailComponent
     }
 
     save() {
-        combineLatest(this.product$, this.languageCode$)
+        combineLatest(this.product$, this.languageCode$, this.channelPriceIncludesTax$)
             .pipe(
                 take(1),
-                mergeMap(([product, languageCode]) => {
+                mergeMap(([product, languageCode, priceIncludesTax]) => {
                     const productGroup = this.getProductFormGroup();
                     let productInput: UpdateProductInput | undefined;
                     let variantsInput: UpdateProductVariantInput[] | undefined;
@@ -422,6 +481,7 @@ export class ProductDetailComponent
                             product,
                             variantsArray as FormArray,
                             languageCode,
+                            priceIncludesTax,
                         );
                     }
 
@@ -492,7 +552,6 @@ export class ProductDetailComponent
                 sku: variant.sku,
                 name: variantTranslation ? variantTranslation.name : '',
                 price: variant.price,
-                priceIncludesTax: variant.priceIncludesTax,
                 priceWithTax: variant.priceWithTax,
                 taxCategoryId: variant.taxCategory.id,
                 stockOnHand: variant.stockOnHand,
@@ -573,6 +632,7 @@ export class ProductDetailComponent
         product: ProductWithVariants.Fragment,
         variantsFormArray: FormArray,
         languageCode: LanguageCode,
+        priceIncludesTax: boolean,
     ): UpdateProductVariantInput[] {
         const dirtyVariants = product.variants.filter((v, i) => {
             const formRow = variantsFormArray.get(i.toString());
@@ -598,6 +658,7 @@ export class ProductDetailComponent
                 });
                 result.taxCategoryId = formValue.taxCategoryId;
                 result.facetValueIds = formValue.facetValueIds;
+                result.price = priceIncludesTax ? formValue.priceWithTax : formValue.price;
                 const assetChanges = this.variantAssetChanges[variant.id];
                 if (assetChanges) {
                     result.featuredAssetId = assetChanges.featuredAssetId;

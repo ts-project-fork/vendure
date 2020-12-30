@@ -74,6 +74,10 @@ clr-input-container.expand {
     }
 }
 
+clr-select-container {
+    margin-bottom: 18px;
+}
+
 .tooltip.tooltip-validation::before {
     top: 10px !important;
 }
@@ -89,6 +93,7 @@ select {
 
 .ng-select .ng-select-container .ng-value-container {
     padding-top: 0;
+    min-width: 60px;
     .ng-value {
         margin: 0 6px 0 0;
     }

@@ -52,9 +52,9 @@ import { assertThrowsWithMessage } from './utils/assert-throws-with-message';
 describe('Product resolver', () => {
     const { server, adminClient, shopClient } = createTestEnvironment(testConfig);
 
-    const removeOptionGuard: ErrorResultGuard<ProductWithOptionsFragment> = createErrorResultGuard<
-        ProductWithOptionsFragment
-    >(input => !!input.optionGroups);
+    const removeOptionGuard: ErrorResultGuard<ProductWithOptionsFragment> = createErrorResultGuard(
+        input => !!input.optionGroups,
+    );
 
     beforeAll(async () => {
         await server.init({
@@ -955,7 +955,7 @@ describe('Product resolver', () => {
                 expect(updatedVariant.featuredAsset!.id).toBe('T_4');
             });
 
-            it('updateProductVariants updates taxCategory and priceBeforeTax', async () => {
+            it('updateProductVariants updates taxCategory and price', async () => {
                 const firstVariant = variants[0];
                 const result = await adminClient.query<
                     UpdateProductVariants.Mutation,
@@ -1166,6 +1166,26 @@ describe('Product resolver', () => {
                 `No Product with the id '1' could be found`,
             ),
         );
+
+        // https://github.com/vendure-ecommerce/vendure/issues/558
+        it('slug of a deleted product can be re-used', async () => {
+            const result = await adminClient.query<CreateProduct.Mutation, CreateProduct.Variables>(
+                CREATE_PRODUCT,
+                {
+                    input: {
+                        translations: [
+                            {
+                                languageCode: LanguageCode.en,
+                                name: 'Product reusing deleted slug',
+                                slug: productToDelete.slug,
+                                description: 'stuff',
+                            },
+                        ],
+                    },
+                },
+            );
+            expect(result.createProduct.slug).toBe(productToDelete.slug);
+        });
     });
 });
 

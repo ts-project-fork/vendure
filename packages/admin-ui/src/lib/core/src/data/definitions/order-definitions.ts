@@ -33,6 +33,7 @@ export const ORDER_ADDRESS_FRAGMENT = gql`
         province
         postalCode
         country
+        countryCode
         phoneNumber
     }
 `;
@@ -64,6 +65,9 @@ export const FULFILLMENT_FRAGMENT = gql`
         createdAt
         updatedAt
         method
+        orderItems {
+            id
+        }
         trackingCode
     }
 `;
@@ -81,11 +85,13 @@ export const ORDER_LINE_FRAGMENT = gql`
             trackInventory
             stockOnHand
         }
-        adjustments {
+        discounts {
             ...Adjustment
         }
         unitPrice
         unitPriceWithTax
+        proratedUnitPrice
+        proratedUnitPriceWithTax
         quantity
         items {
             id
@@ -101,6 +107,8 @@ export const ORDER_LINE_FRAGMENT = gql`
         linePrice
         lineTax
         linePriceWithTax
+        discountedLinePrice
+        discountedLinePriceWithTax
     }
 `;
 
@@ -121,7 +129,15 @@ export const ORDER_DETAIL_FRAGMENT = gql`
         lines {
             ...OrderLine
         }
-        adjustments {
+        surcharges {
+            id
+            sku
+            description
+            price
+            priceWithTax
+            taxRate
+        }
+        discounts {
             ...Adjustment
         }
         promotions {
@@ -129,16 +145,26 @@ export const ORDER_DETAIL_FRAGMENT = gql`
             couponCode
         }
         subTotal
-        subTotalBeforeTax
-        totalBeforeTax
+        subTotalWithTax
+        total
+        totalWithTax
         currencyCode
         shipping
         shippingWithTax
-        shippingMethod {
-            id
-            code
-            name
+        shippingLines {
+            shippingMethod {
+                id
+                code
+                name
+                fulfillmentHandlerCode
+                description
+            }
+        }
+        taxSummary {
             description
+            taxBase
+            taxRate
+            taxTotal
         }
         shippingAddress {
             ...OrderAddress
@@ -174,7 +200,28 @@ export const ORDER_DETAIL_FRAGMENT = gql`
         fulfillments {
             ...Fulfillment
         }
-        total
+        modifications {
+            id
+            createdAt
+            isSettled
+            priceChange
+            note
+            payment {
+                id
+                amount
+            }
+            orderItems {
+                id
+            }
+            refund {
+                id
+                paymentId
+                total
+            }
+            surcharges {
+                id
+            }
+        }
     }
     ${ADJUSTMENT_FRAGMENT}
     ${ORDER_ADDRESS_FRAGMENT}
@@ -357,5 +404,40 @@ export const TRANSITION_FULFILLMENT_TO_STATE = gql`
         }
     }
     ${FULFILLMENT_FRAGMENT}
+    ${ERROR_RESULT_FRAGMENT}
+`;
+
+export const GET_ORDER_SUMMARY = gql`
+    query GetOrderSummary($start: DateTime!, $end: DateTime!) {
+        orders(options: { filter: { orderPlacedAt: { between: { start: $start, end: $end } } } }) {
+            totalItems
+            items {
+                id
+                total
+                currencyCode
+            }
+        }
+    }
+`;
+
+export const MODIFY_ORDER = gql`
+    mutation ModifyOrder($input: ModifyOrderInput!) {
+        modifyOrder(input: $input) {
+            ...OrderDetail
+            ...ErrorResult
+        }
+    }
+    ${ORDER_DETAIL_FRAGMENT}
+    ${ERROR_RESULT_FRAGMENT}
+`;
+
+export const ADD_MANUAL_PAYMENT_TO_ORDER = gql`
+    mutation AddManualPayment($input: ManualPaymentInput!) {
+        addManualPaymentToOrder(input: $input) {
+            ...OrderDetail
+            ...ErrorResult
+        }
+    }
+    ${ORDER_DETAIL_FRAGMENT}
     ${ERROR_RESULT_FRAGMENT}
 `;

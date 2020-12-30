@@ -38,9 +38,8 @@ export const PRODUCT_VARIANT_FRAGMENT = gql`
         enabled
         languageCode
         name
-        price
         currencyCode
-        priceIncludesTax
+        price
         priceWithTax
         stockOnHand
         trackInventory
@@ -79,6 +78,10 @@ export const PRODUCT_VARIANT_FRAGMENT = gql`
             id
             languageCode
             name
+        }
+        channels {
+            id
+            code
         }
     }
     ${ASSET_FRAGMENT}
@@ -330,7 +333,6 @@ export const ORDER_ITEM_FRAGMENT = gql`
         id
         cancelled
         unitPrice
-        unitPriceIncludesTax
         unitPriceWithTax
         taxRate
         fulfillment {
@@ -368,20 +370,29 @@ export const ORDER_WITH_LINES_FRAGMENT = gql`
             items {
                 ...OrderItem
             }
-            totalPrice
+            linePriceWithTax
         }
-        adjustments {
-            ...Adjustment
+        surcharges {
+            id
+            description
+            sku
+            price
+            priceWithTax
         }
         subTotal
-        subTotalBeforeTax
-        totalBeforeTax
+        subTotalWithTax
+        total
+        totalWithTax
+        totalQuantity
         currencyCode
         shipping
-        shippingMethod {
-            id
-            code
-            description
+        shippingWithTax
+        shippingLines {
+            shippingMethod {
+                id
+                code
+                description
+            }
         }
         shippingAddress {
             ...ShippingAddress
@@ -393,10 +404,14 @@ export const ORDER_WITH_LINES_FRAGMENT = gql`
             method
             state
             metadata
+            refunds {
+                id
+                total
+                reason
+            }
         }
         total
     }
-    ${ADJUSTMENT_FRAGMENT}
     ${SHIPPING_ADDRESS_FRAGMENT}
     ${ORDER_ITEM_FRAGMENT}
 `;

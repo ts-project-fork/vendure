@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker';
 import {
@@ -19,7 +19,7 @@ import { RearrangeEvent } from '../collection-tree/collection-tree.component';
     styleUrls: ['./collection-list.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CollectionListComponent implements OnInit {
+export class CollectionListComponent implements OnInit, OnDestroy {
     activeCollectionId$: Observable<string | null>;
     activeCollectionTitle$: Observable<string>;
     items$: Observable<GetCollectionList.Items[]>;
@@ -51,6 +51,10 @@ export class CollectionListComponent implements OnInit {
                 return '';
             }),
         );
+    }
+
+    ngOnDestroy() {
+        this.queryResult.completed$.next();
     }
 
     onRearrange(event: RearrangeEvent) {

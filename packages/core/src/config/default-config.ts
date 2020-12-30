@@ -6,18 +6,18 @@ import {
     SUPER_ADMIN_USER_PASSWORD,
 } from '@vendure/common/lib/shared-constants';
 
-import { generatePublicId } from '../common/generate-public-id';
 import { InMemoryJobQueueStrategy } from '../job-queue/in-memory-job-queue-strategy';
 
 import { DefaultAssetNamingStrategy } from './asset-naming-strategy/default-asset-naming-strategy';
 import { NoAssetPreviewStrategy } from './asset-preview-strategy/no-asset-preview-strategy';
 import { NoAssetStorageStrategy } from './asset-storage-strategy/no-asset-storage-strategy';
 import { NativeAuthenticationStrategy } from './auth/native-authentication-strategy';
-import { defaultCollectionFilters } from './collection/default-collection-filters';
+import { defaultCollectionFilters } from './catalog/default-collection-filters';
+import { DefaultProductVariantPriceCalculationStrategy } from './catalog/default-product-variant-price-calculation-strategy';
 import { AutoIncrementIdStrategy } from './entity-id-strategy/auto-increment-id-strategy';
+import { manualFulfillmentHandler } from './fulfillment/manual-fulfillment-handler';
 import { DefaultLogger } from './logger/default-logger';
-import { TypeOrmLogger } from './logger/typeorm-logger';
-import { DefaultPriceCalculationStrategy } from './order/default-price-calculation-strategy';
+import { DefaultOrderItemPriceCalculationStrategy } from './order/default-order-item-price-calculation-strategy';
 import { DefaultStockAllocationStrategy } from './order/default-stock-allocation-strategy';
 import { MergeOrdersStrategy } from './order/merge-orders-strategy';
 import { DefaultOrderCodeStrategy } from './order/order-code-strategy';
@@ -26,7 +26,7 @@ import { defaultPromotionActions, defaultPromotionConditions } from './promotion
 import { InMemorySessionCacheStrategy } from './session-cache/in-memory-session-cache-strategy';
 import { defaultShippingCalculator } from './shipping-method/default-shipping-calculator';
 import { defaultShippingEligibilityChecker } from './shipping-method/default-shipping-eligibility-checker';
-import { DefaultTaxCalculationStrategy } from './tax/default-tax-calculation-strategy';
+import { DefaultTaxLineCalculationStrategy } from './tax/default-tax-line-calculation-strategy';
 import { DefaultTaxZoneStrategy } from './tax/default-tax-zone-strategy';
 import { RuntimeVendureConfig } from './vendure-config';
 
@@ -81,6 +81,7 @@ export const defaultConfig: RuntimeVendureConfig = {
     },
     catalogOptions: {
         collectionFilters: defaultCollectionFilters,
+        productVariantPriceCalculationStrategy: new DefaultProductVariantPriceCalculationStrategy(),
     },
     entityIdStrategy: new AutoIncrementIdStrategy(),
     assetOptions: {
@@ -101,10 +102,12 @@ export const defaultConfig: RuntimeVendureConfig = {
     shippingOptions: {
         shippingEligibilityCheckers: [defaultShippingEligibilityChecker],
         shippingCalculators: [defaultShippingCalculator],
+        customFulfillmentProcess: [],
+        fulfillmentHandlers: [manualFulfillmentHandler],
     },
     orderOptions: {
         orderItemsLimit: 999,
-        priceCalculationStrategy: new DefaultPriceCalculationStrategy(),
+        orderItemPriceCalculationStrategy: new DefaultOrderItemPriceCalculationStrategy(),
         mergeStrategy: new MergeOrdersStrategy(),
         checkoutMergeStrategy: new UseGuestStrategy(),
         process: [],
@@ -116,7 +119,7 @@ export const defaultConfig: RuntimeVendureConfig = {
     },
     taxOptions: {
         taxZoneStrategy: new DefaultTaxZoneStrategy(),
-        taxCalculationStrategy: new DefaultTaxCalculationStrategy(),
+        taxLineCalculationStrategy: new DefaultTaxLineCalculationStrategy(),
     },
     importExportOptions: {
         importAssetsDir: __dirname,

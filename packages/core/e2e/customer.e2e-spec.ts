@@ -80,7 +80,7 @@ describe('Customer resolver', () => {
     let secondCustomer: GetCustomerList.Items;
     let thirdCustomer: GetCustomerList.Items;
 
-    const customerErrorGuard: ErrorResultGuard<CustomerFragment> = createErrorResultGuard<CustomerFragment>(
+    const customerErrorGuard: ErrorResultGuard<CustomerFragment> = createErrorResultGuard(
         input => !!input.emailAddress,
     );
 
@@ -366,9 +366,9 @@ describe('Customer resolver', () => {
     });
 
     describe('orders', () => {
-        const orderResultGuard: ErrorResultGuard<UpdatedOrderFragment> = createErrorResultGuard<
-            UpdatedOrderFragment
-        >(input => !!input.lines);
+        const orderResultGuard: ErrorResultGuard<UpdatedOrderFragment> = createErrorResultGuard(
+            input => !!input.lines,
+        );
 
         it(`lists that user\'s orders`, async () => {
             // log in as first customer

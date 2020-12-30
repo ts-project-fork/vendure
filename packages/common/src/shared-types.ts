@@ -1,6 +1,6 @@
 // tslint:disable:no-shadowed-variable
 // prettier-ignore
-import { LanguageCode } from './generated-types';
+import { LanguageCode, LocalizedString } from './generated-types';
 
 /**
  * A recursive implementation of the Partial<T> type.
@@ -136,7 +136,9 @@ export type DefaultFormComponentId =
 type DefaultFormConfigHash = {
     'date-form-input': { min?: string; max?: string; yearRange?: number };
     'number-form-input': { min?: number; max?: number; step?: number; prefix?: string; suffix?: string };
-    'select-form-input': { options?: Array<{ value: string; label?: string }> };
+    'select-form-input': {
+        options?: Array<{ value: string; label?: Array<Omit<LocalizedString, '__typename'>> }>;
+    };
     'boolean-form-input': {};
     'currency-form-input': {};
     'facet-value-form-input': {};
@@ -243,6 +245,13 @@ export interface AdminUiAppConfig {
     path: string;
     /**
      * @description
+     * Specifies the url route to the Admin UI app.
+     *
+     * @default 'admin'
+     */
+    route?: string;
+    /**
+     * @description
      * The function which will be invoked to start the app compilation process.
      */
     compile?: () => Promise<void>;
@@ -265,6 +274,13 @@ export interface AdminUiAppDevModeConfig {
      * The port on which the dev server is listening. Overrides the value set by `AdminUiOptions.port`.
      */
     port: number;
+    /**
+     * @description
+     * Specifies the url route to the Admin UI app.
+     *
+     * @default 'admin'
+     */
+    route?: string;
     /**
      * @description
      * The function which will be invoked to start the app compilation process.

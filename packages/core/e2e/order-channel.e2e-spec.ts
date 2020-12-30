@@ -125,9 +125,9 @@ describe('Channelaware orders', () => {
         await server.destroy();
     });
 
-    const orderResultGuard: ErrorResultGuard<UpdatedOrderFragment> = createErrorResultGuard<
-        UpdatedOrderFragment
-    >(input => !!input.lines);
+    const orderResultGuard: ErrorResultGuard<UpdatedOrderFragment> = createErrorResultGuard(
+        input => !!input.lines,
+    );
 
     it('creates order on current channel', async () => {
         shopClient.setChannelToken(SECOND_CHANNEL_TOKEN);

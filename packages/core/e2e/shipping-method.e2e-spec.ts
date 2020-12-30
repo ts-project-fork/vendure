@@ -10,6 +10,7 @@ import path from 'path';
 
 import { initialData } from '../../../e2e-common/e2e-initial-data';
 import { testConfig, TEST_SETUP_TIMEOUT_MS } from '../../../e2e-common/test-config';
+import { manualFulfillmentHandler } from '../src/config/fulfillment/manual-fulfillment-handler';
 
 import { SHIPPING_METHOD_FRAGMENT } from './graphql/fragments';
 import {
@@ -39,7 +40,8 @@ const calculatorWithMetadata = new ShippingCalculator({
     calculate: () => {
         return {
             price: 100,
-            priceWithTax: 100,
+            priceIncludesTax: true,
+            taxRate: 0,
             metadata: TEST_METADATA,
         };
     },
@@ -107,6 +109,31 @@ describe('ShippingMethod resolver', () => {
                         type: 'int',
                     },
                     {
+                        label: 'Price includes tax',
+                        name: 'includesTax',
+                        type: 'string',
+                        description: null,
+                        ui: {
+                            component: 'select-form-input',
+                            options: [
+                                {
+                                    label: [{ languageCode: LanguageCode.en, value: 'Includes tax' }],
+                                    value: 'include',
+                                },
+                                {
+                                    label: [{ languageCode: LanguageCode.en, value: 'Excludes tax' }],
+                                    value: 'exclude',
+                                },
+                                {
+                                    label: [
+                                        { languageCode: LanguageCode.en, value: 'Auto (based on Channel)' },
+                                    ],
+                                    value: 'auto',
+                                },
+                            ],
+                        },
+                    },
+                    {
                         ui: {
                             component: 'number-form-input',
                             suffix: '%',
@@ -154,6 +181,7 @@ describe('ShippingMethod resolver', () => {
         >(CREATE_SHIPPING_METHOD, {
             input: {
                 code: 'new-method',
+                fulfillmentHandler: manualFulfillmentHandler.code,
                 checker: {
                     code: defaultShippingEligibilityChecker.code,
                     arguments: [
