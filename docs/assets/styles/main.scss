@@ -61,6 +61,13 @@ img {
     vertical-align: middle;
 }
 
+hr {
+    height: 0;
+    border: 0;
+    border-bottom: 1px solid $gray-500;
+    margin: 24px 0;
+}
+
 ul.pagination {
     display: flex;
     justify-content: center;
