@@ -14,7 +14,7 @@ class TestController implements OnModuleInit {
             concurrency: 1,
             process: job => {
                 PluginWithJobQueue.jobSubject.subscribe({
-                    complete: () => {
+                    next: () => {
                         PluginWithJobQueue.jobHasDoneWork = true;
                         job.complete();
                     },
