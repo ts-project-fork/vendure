@@ -25,6 +25,7 @@ import {
     MockTaxRateService,
     taxCategoryReduced,
     taxCategoryStandard,
+    taxCategoryZero,
 } from '../../../testing/order-test-utils';
 import { WorkerService } from '../../../worker/worker.service';
 import { ShippingMethodService } from '../../services/shipping-method.service';
@@ -590,6 +591,69 @@ describe('OrderCalculator', () => {
                     expect(order.totalWithTax).toBe(50);
                     assertOrderTotalsAddUp(order);
                 });
+
+                it('prices include tax at 0%', async () => {
+                    const ctx = createRequestContext({ pricesIncludeTax: true });
+                    const order = createOrder({
+                        ctx,
+                        lines: [
+                            {
+                                listPrice: 100,
+                                taxCategory: taxCategoryZero,
+                                quantity: 1,
+                            },
+                        ],
+                    });
+                    await orderCalculator.applyPriceAdjustments(ctx, order, [promotion]);
+
+                    expect(order.subTotal).toBe(50);
+                    expect(order.discounts.length).toBe(1);
+                    expect(order.discounts[0].description).toBe('50% off order');
+                    expect(order.totalWithTax).toBe(50);
+                    assertOrderTotalsAddUp(order);
+                });
+            });
+
+            it('correct proration', async () => {
+                const promotion = new Promotion({
+                    id: 1,
+                    name: '$5 off order',
+                    conditions: [{ code: alwaysTrueCondition.code, args: [] }],
+                    promotionConditions: [alwaysTrueCondition],
+                    actions: [
+                        {
+                            code: fixedDiscountOrderAction.code,
+                            args: [],
+                        },
+                    ],
+                    promotionActions: [fixedDiscountOrderAction],
+                });
+
+                const ctx = createRequestContext({ pricesIncludeTax: true });
+                const order = createOrder({
+                    ctx,
+                    lines: [
+                        {
+                            listPrice: 500,
+                            taxCategory: taxCategoryStandard,
+                            quantity: 1,
+                        },
+                        {
+                            listPrice: 500,
+                            taxCategory: taxCategoryZero,
+                            quantity: 1,
+                        },
+                    ],
+                });
+                await orderCalculator.applyPriceAdjustments(ctx, order, [promotion]);
+
+                expect(order.subTotalWithTax).toBe(500);
+                expect(order.discounts.length).toBe(1);
+                expect(order.discounts[0].description).toBe('$5 off order');
+                expect(order.lines[0].proratedLinePriceWithTax).toBe(250);
+                expect(order.lines[1].proratedLinePriceWithTax).toBe(250);
+                expect(order.totalWithTax).toBe(500);
+                assertOrderTotalsAddUp(order);
             });
         });
 
@@ -1030,7 +1094,7 @@ describe('OrderCalculator', () => {
                     ]);
 
                     expect(order.subTotal).toBe(5719);
-                    expect(order.subTotalWithTax).toBe(6440);
+                    expect(order.subTotalWithTax).toBe(6448);
                     assertOrderTotalsAddUp(order);
                 });
 
@@ -1062,7 +1126,7 @@ describe('OrderCalculator', () => {
                         $5OffOrderPromo,
                     ]);
 
-                    expect(order.subTotal).toBe(5084);
+                    expect(order.subTotal).toBe(5082);
                     expect(order.subTotalWithTax).toBe(5719);
                     assertOrderTotalsAddUp(order);
                 });

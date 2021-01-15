@@ -29,11 +29,11 @@ import {
 import { DEFAULT_CHANNEL_CODE } from '@vendure/common/lib/shared-constants';
 import { notNullOrUndefined } from '@vendure/common/lib/shared-utils';
 import { PaginationInstance } from 'ngx-pagination';
-import { Observable, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, map } from 'rxjs/operators';
 
 import { AssetChange } from '../product-assets/product-assets.component';
-import { VariantFormValue } from '../product-detail/product-detail.component';
+import { SelectedAssets, VariantFormValue } from '../product-detail/product-detail.component';
 import { UpdateProductOptionDialogComponent } from '../update-product-option-dialog/update-product-option-dialog.component';
 
 export interface VariantAssetChange extends AssetChange {
@@ -56,6 +56,7 @@ export class ProductVariantsListComponent implements OnChanges, OnInit, OnDestro
     @Input() customFields: CustomFieldConfig[];
     @Input() customOptionFields: CustomFieldConfig[];
     @Input() activeLanguage: LanguageCode;
+    @Input() pendingAssetChanges: { [variantId: string]: SelectedAssets };
     @Output() assignToChannel = new EventEmitter<ProductWithVariants.Variants>();
     @Output() removeFromChannel = new EventEmitter<{
         channelId: string;
@@ -64,7 +65,7 @@ export class ProductVariantsListComponent implements OnChanges, OnInit, OnDestro
     @Output() assetChange = new EventEmitter<VariantAssetChange>();
     @Output() selectionChange = new EventEmitter<string[]>();
     @Output() selectFacetValueClick = new EventEmitter<string[]>();
-    @Output() updateProductOption = new EventEmitter<UpdateProductOptionInput>();
+    @Output() updateProductOption = new EventEmitter<UpdateProductOptionInput & { autoUpdate: boolean }>();
     selectedVariantIds: string[] = [];
     pagination: PaginationInstance = {
         currentPage: 1,
@@ -116,11 +117,11 @@ export class ProductVariantsListComponent implements OnChanges, OnInit, OnDestro
                 this.pagination.currentPage = 1;
             }
             if (this.channelPriceIncludesTax != null && Object.keys(this.variantListPrice).length === 0) {
-                this.buildVariantListPrices(this.variants);
+                this.buildVariantListPrices(this.formArray.value);
             }
         }
         if ('channelPriceIncludesTax' in changes) {
-            this.buildVariantListPrices(this.variants);
+            this.buildVariantListPrices(this.formArray.value);
         }
     }
 

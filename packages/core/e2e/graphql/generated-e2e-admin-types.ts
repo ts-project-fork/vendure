@@ -4497,11 +4497,14 @@ export type GetProductsWithVariantIdsQuery = {
 export type GetCollectionQueryVariables = Exact<{
     id?: Maybe<Scalars['ID']>;
     slug?: Maybe<Scalars['String']>;
+    variantListOptions?: Maybe<ProductVariantListOptions>;
 }>;
 
 export type GetCollectionQuery = {
     collection?: Maybe<
-        { productVariants: { items: Array<Pick<ProductVariant, 'id' | 'name'>> } } & CollectionFragment
+        {
+            productVariants: { items: Array<Pick<ProductVariant, 'id' | 'name' | 'price'>> };
+        } & CollectionFragment
     >;
 };
 
@@ -4962,7 +4965,15 @@ export type ShippingAddressFragment = Pick<
 
 export type OrderFragment = Pick<
     Order,
-    'id' | 'createdAt' | 'updatedAt' | 'code' | 'state' | 'total' | 'currencyCode'
+    | 'id'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'code'
+    | 'state'
+    | 'total'
+    | 'totalWithTax'
+    | 'totalQuantity'
+    | 'currencyCode'
 > & { customer?: Maybe<Pick<Customer, 'id' | 'firstName' | 'lastName'>> };
 
 export type OrderItemFragment = Pick<
@@ -5843,6 +5854,20 @@ export type GetOrderWithPaymentsQuery = {
     order?: Maybe<
         Pick<Order, 'id'> & { payments?: Maybe<Array<Pick<Payment, 'id' | 'errorMessage' | 'metadata'>>> }
     >;
+};
+
+export type GetOrderListWithQtyQueryVariables = Exact<{
+    options?: Maybe<OrderListOptions>;
+}>;
+
+export type GetOrderListWithQtyQuery = {
+    orders: {
+        items: Array<
+            Pick<Order, 'id' | 'code' | 'totalQuantity'> & {
+                lines: Array<Pick<OrderLine, 'id' | 'quantity'>>;
+            }
+        >;
+    };
 };
 
 export type UpdateProductOptionGroupMutationVariables = Exact<{
@@ -7832,6 +7857,22 @@ export namespace GetOrderWithPayments {
     export type Order = NonNullable<GetOrderWithPaymentsQuery['order']>;
     export type Payments = NonNullable<
         NonNullable<NonNullable<GetOrderWithPaymentsQuery['order']>['payments']>[number]
+    >;
+}
+
+export namespace GetOrderListWithQty {
+    export type Variables = GetOrderListWithQtyQueryVariables;
+    export type Query = GetOrderListWithQtyQuery;
+    export type Orders = NonNullable<GetOrderListWithQtyQuery['orders']>;
+    export type Items = NonNullable<
+        NonNullable<NonNullable<GetOrderListWithQtyQuery['orders']>['items']>[number]
+    >;
+    export type Lines = NonNullable<
+        NonNullable<
+            NonNullable<
+                NonNullable<NonNullable<GetOrderListWithQtyQuery['orders']>['items']>[number]
+            >['lines']
+        >[number]
     >;
 }
 

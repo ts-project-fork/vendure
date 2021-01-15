@@ -11,6 +11,7 @@ import {
     AddFulfillmentToOrderResult,
     AddManualPaymentToOrderResult,
     AddNoteToOrderInput,
+    AdjustmentType,
     CancelOrderInput,
     CancelOrderResult,
     CreateAddressInput,
@@ -152,7 +153,14 @@ export class OrderService {
     findAll(ctx: RequestContext, options?: ListQueryOptions<Order>): Promise<PaginatedList<Order>> {
         return this.listQueryBuilder
             .build(Order, options, {
-                relations: ['lines', 'customer', 'lines.productVariant', 'channels', 'shippingLines'],
+                relations: [
+                    'lines',
+                    'customer',
+                    'lines.productVariant',
+                    'lines.items',
+                    'channels',
+                    'shippingLines',
+                ],
                 channelId: ctx.channelId,
                 ctx,
             })
@@ -521,6 +529,16 @@ export class OrderService {
     async removeCouponCode(ctx: RequestContext, orderId: ID, couponCode: string) {
         const order = await this.getOrderOrThrow(ctx, orderId);
         if (order.couponCodes.includes(couponCode)) {
+            // When removing a couponCode which has triggered an Order-level discount
+            // we need to make sure we persist the changes to the adjustments array of
+            // any affected OrderItems.
+            const affectedOrderItems = order.lines
+                .reduce((items, l) => [...items, ...l.items], [] as OrderItem[])
+                .filter(
+                    i =>
+                        i.adjustments.filter(a => a.type === AdjustmentType.DISTRIBUTED_ORDER_PROMOTION)
+                            .length,
+                );
             order.couponCodes = order.couponCodes.filter(cc => cc !== couponCode);
             await this.historyService.createHistoryEntryForOrder({
                 ctx,
@@ -528,7 +546,9 @@ export class OrderService {
                 type: HistoryEntryType.ORDER_COUPON_REMOVED,
                 data: { couponCode },
             });
-            return this.applyPriceAdjustments(ctx, order);
+            const result = await this.applyPriceAdjustments(ctx, order);
+            await this.connection.getRepository(ctx, OrderItem).save(affectedOrderItems);
+            return result;
         } else {
             return order;
         }
@@ -906,7 +926,7 @@ export class OrderService {
 
     async getOrderFulfillments(ctx: RequestContext, order: Order): Promise<Fulfillment[]> {
         let lines: OrderLine[];
-        if (order.lines?.[0].items?.[0]?.fulfillments !== undefined) {
+        if (order.lines?.[0]?.items?.[0]?.fulfillments !== undefined) {
             lines = order.lines;
         } else {
             lines = await this.connection.getRepository(ctx, OrderLine).find({
