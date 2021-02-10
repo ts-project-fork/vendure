@@ -297,7 +297,7 @@ export class OrderService {
                 })
                 .leftJoinAndSelect('order.customer', 'customer')
                 .leftJoinAndSelect('order.shippingLines', 'shippingLines')
-                .where('active = :active', { active: true })
+                .where('order.active = :active', { active: true })
                 .andWhere('order.customer.id = :customerId', { customerId: customer.id })
                 .orderBy('order.createdAt', 'DESC')
                 .getOne();
@@ -363,26 +363,28 @@ export class OrderService {
             return validationError;
         }
         const variant = await this.connection.getEntityOrThrow(ctx, ProductVariant, productVariantId);
-        const correctedQuantity = await this.orderModifier.constrainQuantityToSaleable(
-            ctx,
-            variant,
-            quantity,
-        );
-        if (correctedQuantity === 0) {
-            return new InsufficientStockError(correctedQuantity, order);
-        }
-        const orderLine = await this.orderModifier.getOrCreateItemOrderLine(
+        const existingOrderLine = this.orderModifier.getExistingOrderLine(
             ctx,
             order,
             productVariantId,
             customFields,
         );
-        await this.orderModifier.updateOrderLineQuantity(
+        const correctedQuantity = await this.orderModifier.constrainQuantityToSaleable(
             ctx,
-            orderLine,
-            orderLine.quantity + correctedQuantity,
-            order,
+            variant,
+            quantity,
+            existingOrderLine?.quantity,
         );
+        if (correctedQuantity === 0) {
+            return new InsufficientStockError(correctedQuantity, order);
+        }
+        const orderLine = await this.orderModifier.getOrCreateOrderLine(
+            ctx,
+            order,
+            productVariantId,
+            customFields,
+        );
+        await this.orderModifier.updateOrderLineQuantity(ctx, orderLine, correctedQuantity, order);
         const quantityWasAdjustedDown = correctedQuantity < quantity;
         const updatedOrder = await this.applyPriceAdjustments(ctx, order, orderLine);
         if (quantityWasAdjustedDown) {
@@ -847,12 +849,7 @@ export class OrderService {
         ctx: RequestContext,
         input: FulfillOrderInput,
     ): Promise<ErrorResultUnion<AddFulfillmentToOrderResult, Fulfillment>> {
-        if (
-            !input.lines ||
-            input.lines.length === 0 ||
-            input.lines.length === 0 ||
-            summate(input.lines, 'quantity') === 0
-        ) {
+        if (!input.lines || input.lines.length === 0 || summate(input.lines, 'quantity') === 0) {
             return new EmptyOrderLineSelectionError();
         }
         const ordersAndItems = await this.getOrdersAndItemsFromLines(
@@ -1250,6 +1247,18 @@ export class OrderService {
         order: Order,
         updatedOrderLine?: OrderLine,
     ): Promise<Order> {
+        if (updatedOrderLine) {
+            const { orderItemPriceCalculationStrategy } = this.configService.orderOptions;
+            const { price, priceIncludesTax } = await orderItemPriceCalculationStrategy.calculateUnitPrice(
+                ctx,
+                updatedOrderLine.productVariant,
+                updatedOrderLine.customFields || {},
+            );
+            for (const item of updatedOrderLine.items) {
+                item.listPrice = price;
+                item.listPriceIncludesTax = priceIncludesTax;
+            }
+        }
         const promotions = await this.connection.getRepository(ctx, Promotion).find({
             where: { enabled: true, deletedAt: null },
             order: { priorityScore: 'ASC' },

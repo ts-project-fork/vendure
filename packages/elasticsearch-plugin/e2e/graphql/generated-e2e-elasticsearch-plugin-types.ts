@@ -52,9 +52,12 @@ export type Query = {
     productOptionGroups: Array<ProductOptionGroup>;
     productOptionGroup?: Maybe<ProductOptionGroup>;
     search: SearchResponse;
+    /** List Products */
     products: ProductList;
     /** Get a Product either by id or slug. If neither id nor slug is speicified, an error will result. */
     product?: Maybe<Product>;
+    /** List ProductVariants */
+    productVariants: ProductVariantList;
     /** Get a ProductVariant by id */
     productVariant?: Maybe<ProductVariant>;
     promotion?: Maybe<Promotion>;
@@ -186,6 +189,10 @@ export type QueryProductsArgs = {
 export type QueryProductArgs = {
     id?: Maybe<Scalars['ID']>;
     slug?: Maybe<Scalars['String']>;
+};
+
+export type QueryProductVariantsArgs = {
+    options?: Maybe<ProductVariantListOptions>;
 };
 
 export type QueryProductVariantArgs = {
@@ -2466,6 +2473,8 @@ export type ConfigArgDefinition = {
     name: Scalars['String'];
     type: Scalars['String'];
     list: Scalars['Boolean'];
+    required: Scalars['Boolean'];
+    defaultValue?: Maybe<Scalars['String']>;
     label?: Maybe<Scalars['String']>;
     description?: Maybe<Scalars['String']>;
     ui?: Maybe<Scalars['JSON']>;
@@ -2489,6 +2498,7 @@ export type DeletionResponse = {
 
 export type ConfigArgInput = {
     name: Scalars['String'];
+    /** A JSON stringified representation of the actual value */
     value: Scalars['String'];
 };
 
@@ -3486,6 +3496,7 @@ export type OrderAddress = {
     country?: Maybe<Scalars['String']>;
     countryCode?: Maybe<Scalars['String']>;
     phoneNumber?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type OrderList = PaginatedList & {
@@ -3944,6 +3955,13 @@ export type ProductListOptions = {
     filter?: Maybe<ProductFilterParameter>;
 };
 
+export type ProductVariantListOptions = {
+    skip?: Maybe<Scalars['Int']>;
+    take?: Maybe<Scalars['Int']>;
+    sort?: Maybe<ProductVariantSortParameter>;
+    filter?: Maybe<ProductVariantFilterParameter>;
+};
+
 export type PromotionListOptions = {
     skip?: Maybe<Scalars['Int']>;
     take?: Maybe<Scalars['Int']>;
@@ -3970,13 +3988,6 @@ export type TaxRateListOptions = {
     take?: Maybe<Scalars['Int']>;
     sort?: Maybe<TaxRateSortParameter>;
     filter?: Maybe<TaxRateFilterParameter>;
-};
-
-export type ProductVariantListOptions = {
-    skip?: Maybe<Scalars['Int']>;
-    take?: Maybe<Scalars['Int']>;
-    sort?: Maybe<ProductVariantSortParameter>;
-    filter?: Maybe<ProductVariantFilterParameter>;
 };
 
 export type HistoryEntryListOptions = {
@@ -4205,6 +4216,38 @@ export type ProductSortParameter = {
     description?: Maybe<SortOrder>;
 };
 
+export type ProductVariantFilterParameter = {
+    enabled?: Maybe<BooleanOperators>;
+    trackInventory?: Maybe<StringOperators>;
+    stockOnHand?: Maybe<NumberOperators>;
+    stockAllocated?: Maybe<NumberOperators>;
+    outOfStockThreshold?: Maybe<NumberOperators>;
+    useGlobalOutOfStockThreshold?: Maybe<BooleanOperators>;
+    createdAt?: Maybe<DateOperators>;
+    updatedAt?: Maybe<DateOperators>;
+    languageCode?: Maybe<StringOperators>;
+    sku?: Maybe<StringOperators>;
+    name?: Maybe<StringOperators>;
+    price?: Maybe<NumberOperators>;
+    currencyCode?: Maybe<StringOperators>;
+    priceIncludesTax?: Maybe<BooleanOperators>;
+    priceWithTax?: Maybe<NumberOperators>;
+};
+
+export type ProductVariantSortParameter = {
+    stockOnHand?: Maybe<SortOrder>;
+    stockAllocated?: Maybe<SortOrder>;
+    outOfStockThreshold?: Maybe<SortOrder>;
+    id?: Maybe<SortOrder>;
+    productId?: Maybe<SortOrder>;
+    createdAt?: Maybe<SortOrder>;
+    updatedAt?: Maybe<SortOrder>;
+    sku?: Maybe<SortOrder>;
+    name?: Maybe<SortOrder>;
+    price?: Maybe<SortOrder>;
+    priceWithTax?: Maybe<SortOrder>;
+};
+
 export type PromotionFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
@@ -4275,38 +4318,6 @@ export type TaxRateSortParameter = {
     updatedAt?: Maybe<SortOrder>;
     name?: Maybe<SortOrder>;
     value?: Maybe<SortOrder>;
-};
-
-export type ProductVariantFilterParameter = {
-    enabled?: Maybe<BooleanOperators>;
-    trackInventory?: Maybe<StringOperators>;
-    stockOnHand?: Maybe<NumberOperators>;
-    stockAllocated?: Maybe<NumberOperators>;
-    outOfStockThreshold?: Maybe<NumberOperators>;
-    useGlobalOutOfStockThreshold?: Maybe<BooleanOperators>;
-    createdAt?: Maybe<DateOperators>;
-    updatedAt?: Maybe<DateOperators>;
-    languageCode?: Maybe<StringOperators>;
-    sku?: Maybe<StringOperators>;
-    name?: Maybe<StringOperators>;
-    price?: Maybe<NumberOperators>;
-    currencyCode?: Maybe<StringOperators>;
-    priceIncludesTax?: Maybe<BooleanOperators>;
-    priceWithTax?: Maybe<NumberOperators>;
-};
-
-export type ProductVariantSortParameter = {
-    stockOnHand?: Maybe<SortOrder>;
-    stockAllocated?: Maybe<SortOrder>;
-    outOfStockThreshold?: Maybe<SortOrder>;
-    id?: Maybe<SortOrder>;
-    productId?: Maybe<SortOrder>;
-    createdAt?: Maybe<SortOrder>;
-    updatedAt?: Maybe<SortOrder>;
-    sku?: Maybe<SortOrder>;
-    name?: Maybe<SortOrder>;
-    price?: Maybe<SortOrder>;
-    priceWithTax?: Maybe<SortOrder>;
 };
 
 export type HistoryEntryFilterParameter = {

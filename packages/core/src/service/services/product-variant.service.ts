@@ -62,6 +62,30 @@ export class ProductVariantService {
         private roleService: RoleService,
     ) {}
 
+    async findAll(
+        ctx: RequestContext,
+        options?: ListQueryOptions<ProductVariant>,
+    ): Promise<PaginatedList<Translated<ProductVariant>>> {
+        const relations = ['featuredAsset', 'taxCategory', 'channels'];
+        return this.listQueryBuilder
+            .build(ProductVariant, options, {
+                relations,
+                channelId: ctx.channelId,
+                where: { deletedAt: null },
+                ctx,
+            })
+            .getManyAndCount()
+            .then(async ([variants, totalItems]) => {
+                const items = variants.map(variant =>
+                    translateDeep(this.applyChannelPriceAndTax(variant, ctx), ctx.languageCode),
+                );
+                return {
+                    items,
+                    totalItems,
+                };
+            });
+    }
+
     findOne(ctx: RequestContext, productVariantId: ID): Promise<Translated<ProductVariant> | undefined> {
         const relations = ['product', 'product.featuredAsset', 'taxCategory'];
         return this.connection
@@ -325,12 +349,17 @@ export class ProductVariantService {
         }
 
         const defaultChannelId = this.channelService.getDefaultChannel().id;
-        await this.createProductVariantPrice(ctx, createdVariant.id, input.price, ctx.channelId);
+        await this.createOrUpdateProductVariantPrice(ctx, createdVariant.id, input.price, ctx.channelId);
         if (!idsAreEqual(ctx.channelId, defaultChannelId)) {
             // When creating a ProductVariant _not_ in the default Channel, we still need to
             // create a ProductVariantPrice for it in the default Channel, otherwise errors will
             // result when trying to query it there.
-            await this.createProductVariantPrice(ctx, createdVariant.id, input.price, defaultChannelId);
+            await this.createOrUpdateProductVariantPrice(
+                ctx,
+                createdVariant.id,
+                input.price,
+                defaultChannelId,
+            );
         }
         return createdVariant.id;
     }
@@ -400,17 +429,25 @@ export class ProductVariantService {
     /**
      * Creates a ProductVariantPrice for the given ProductVariant/Channel combination.
      */
-    async createProductVariantPrice(
+    async createOrUpdateProductVariantPrice(
         ctx: RequestContext,
         productVariantId: ID,
         price: number,
         channelId: ID,
     ): Promise<ProductVariantPrice> {
-        const variantPrice = new ProductVariantPrice({
-            price,
-            channelId,
+        let variantPrice = await this.connection.getRepository(ctx, ProductVariantPrice).findOne({
+            where: {
+                variant: productVariantId,
+                channelId,
+            },
         });
-        variantPrice.variant = new ProductVariant({ id: productVariantId });
+        if (!variantPrice) {
+            variantPrice = new ProductVariantPrice({
+                channelId,
+                variant: new ProductVariant({ id: productVariantId }),
+            });
+        }
+        variantPrice.price = price;
         return this.connection.getRepository(ctx, ProductVariantPrice).save(variantPrice);
     }
 
@@ -478,18 +515,24 @@ export class ProductVariantService {
             this.applyChannelPriceAndTax(variant, ctx);
             await this.channelService.assignToChannels(ctx, Product, variant.productId, [input.channelId]);
             await this.channelService.assignToChannels(ctx, ProductVariant, variant.id, [input.channelId]);
-            await this.createProductVariantPrice(
+            await this.createOrUpdateProductVariantPrice(
                 ctx,
                 variant.id,
                 variant.price * priceFactor,
                 input.channelId,
             );
-            this.eventBus.publish(new ProductVariantChannelEvent(ctx, variant, input.channelId, 'assigned'));
         }
-        return this.findByIds(
+        const result = await this.findByIds(
             ctx,
             variants.map(v => v.id),
         );
+        // Publish the events at the latest possible stage to decrease the chance of race conditions
+        // whereby an event listener triggers a query which does not yet have access to the changes
+        // within the current transaction.
+        for (const variant of variants) {
+            this.eventBus.publish(new ProductVariantChannelEvent(ctx, variant, input.channelId, 'assigned'));
+        }
+        return result;
     }
 
     async removeProductVariantsFromChannel(
@@ -531,12 +574,18 @@ export class ProductVariantService {
                     input.channelId,
                 ]);
             }
-            this.eventBus.publish(new ProductVariantChannelEvent(ctx, variant, input.channelId, 'removed'));
         }
-        return this.findByIds(
+        const result = await this.findByIds(
             ctx,
             variants.map(v => v.id),
         );
+        // Publish the events at the latest possible stage to decrease the chance of race conditions
+        // whereby an event listener triggers a query which does not yet have access to the changes
+        // within the current transaction.
+        for (const variant of variants) {
+            this.eventBus.publish(new ProductVariantChannelEvent(ctx, variant, input.channelId, 'removed'));
+        }
+        return result;
     }
 
     private async validateVariantOptionIds(ctx: RequestContext, input: CreateProductVariantInput) {

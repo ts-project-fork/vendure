@@ -52,9 +52,12 @@ export type Query = {
     productOptionGroups: Array<ProductOptionGroup>;
     productOptionGroup?: Maybe<ProductOptionGroup>;
     search: SearchResponse;
+    /** List Products */
     products: ProductList;
     /** Get a Product either by id or slug. If neither id nor slug is speicified, an error will result. */
     product?: Maybe<Product>;
+    /** List ProductVariants */
+    productVariants: ProductVariantList;
     /** Get a ProductVariant by id */
     productVariant?: Maybe<ProductVariant>;
     promotion?: Maybe<Promotion>;
@@ -186,6 +189,10 @@ export type QueryProductsArgs = {
 export type QueryProductArgs = {
     id?: Maybe<Scalars['ID']>;
     slug?: Maybe<Scalars['String']>;
+};
+
+export type QueryProductVariantsArgs = {
+    options?: Maybe<ProductVariantListOptions>;
 };
 
 export type QueryProductVariantArgs = {
@@ -2466,6 +2473,8 @@ export type ConfigArgDefinition = {
     name: Scalars['String'];
     type: Scalars['String'];
     list: Scalars['Boolean'];
+    required: Scalars['Boolean'];
+    defaultValue?: Maybe<Scalars['String']>;
     label?: Maybe<Scalars['String']>;
     description?: Maybe<Scalars['String']>;
     ui?: Maybe<Scalars['JSON']>;
@@ -2489,6 +2498,7 @@ export type DeletionResponse = {
 
 export type ConfigArgInput = {
     name: Scalars['String'];
+    /** A JSON stringified representation of the actual value */
     value: Scalars['String'];
 };
 
@@ -3486,6 +3496,7 @@ export type OrderAddress = {
     country?: Maybe<Scalars['String']>;
     countryCode?: Maybe<Scalars['String']>;
     phoneNumber?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type OrderList = PaginatedList & {
@@ -3944,6 +3955,13 @@ export type ProductListOptions = {
     filter?: Maybe<ProductFilterParameter>;
 };
 
+export type ProductVariantListOptions = {
+    skip?: Maybe<Scalars['Int']>;
+    take?: Maybe<Scalars['Int']>;
+    sort?: Maybe<ProductVariantSortParameter>;
+    filter?: Maybe<ProductVariantFilterParameter>;
+};
+
 export type PromotionListOptions = {
     skip?: Maybe<Scalars['Int']>;
     take?: Maybe<Scalars['Int']>;
@@ -3970,13 +3988,6 @@ export type TaxRateListOptions = {
     take?: Maybe<Scalars['Int']>;
     sort?: Maybe<TaxRateSortParameter>;
     filter?: Maybe<TaxRateFilterParameter>;
-};
-
-export type ProductVariantListOptions = {
-    skip?: Maybe<Scalars['Int']>;
-    take?: Maybe<Scalars['Int']>;
-    sort?: Maybe<ProductVariantSortParameter>;
-    filter?: Maybe<ProductVariantFilterParameter>;
 };
 
 export type HistoryEntryListOptions = {
@@ -4205,6 +4216,38 @@ export type ProductSortParameter = {
     description?: Maybe<SortOrder>;
 };
 
+export type ProductVariantFilterParameter = {
+    enabled?: Maybe<BooleanOperators>;
+    trackInventory?: Maybe<StringOperators>;
+    stockOnHand?: Maybe<NumberOperators>;
+    stockAllocated?: Maybe<NumberOperators>;
+    outOfStockThreshold?: Maybe<NumberOperators>;
+    useGlobalOutOfStockThreshold?: Maybe<BooleanOperators>;
+    createdAt?: Maybe<DateOperators>;
+    updatedAt?: Maybe<DateOperators>;
+    languageCode?: Maybe<StringOperators>;
+    sku?: Maybe<StringOperators>;
+    name?: Maybe<StringOperators>;
+    price?: Maybe<NumberOperators>;
+    currencyCode?: Maybe<StringOperators>;
+    priceIncludesTax?: Maybe<BooleanOperators>;
+    priceWithTax?: Maybe<NumberOperators>;
+};
+
+export type ProductVariantSortParameter = {
+    stockOnHand?: Maybe<SortOrder>;
+    stockAllocated?: Maybe<SortOrder>;
+    outOfStockThreshold?: Maybe<SortOrder>;
+    id?: Maybe<SortOrder>;
+    productId?: Maybe<SortOrder>;
+    createdAt?: Maybe<SortOrder>;
+    updatedAt?: Maybe<SortOrder>;
+    sku?: Maybe<SortOrder>;
+    name?: Maybe<SortOrder>;
+    price?: Maybe<SortOrder>;
+    priceWithTax?: Maybe<SortOrder>;
+};
+
 export type PromotionFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
@@ -4275,38 +4318,6 @@ export type TaxRateSortParameter = {
     updatedAt?: Maybe<SortOrder>;
     name?: Maybe<SortOrder>;
     value?: Maybe<SortOrder>;
-};
-
-export type ProductVariantFilterParameter = {
-    enabled?: Maybe<BooleanOperators>;
-    trackInventory?: Maybe<StringOperators>;
-    stockOnHand?: Maybe<NumberOperators>;
-    stockAllocated?: Maybe<NumberOperators>;
-    outOfStockThreshold?: Maybe<NumberOperators>;
-    useGlobalOutOfStockThreshold?: Maybe<BooleanOperators>;
-    createdAt?: Maybe<DateOperators>;
-    updatedAt?: Maybe<DateOperators>;
-    languageCode?: Maybe<StringOperators>;
-    sku?: Maybe<StringOperators>;
-    name?: Maybe<StringOperators>;
-    price?: Maybe<NumberOperators>;
-    currencyCode?: Maybe<StringOperators>;
-    priceIncludesTax?: Maybe<BooleanOperators>;
-    priceWithTax?: Maybe<NumberOperators>;
-};
-
-export type ProductVariantSortParameter = {
-    stockOnHand?: Maybe<SortOrder>;
-    stockAllocated?: Maybe<SortOrder>;
-    outOfStockThreshold?: Maybe<SortOrder>;
-    id?: Maybe<SortOrder>;
-    productId?: Maybe<SortOrder>;
-    createdAt?: Maybe<SortOrder>;
-    updatedAt?: Maybe<SortOrder>;
-    sku?: Maybe<SortOrder>;
-    name?: Maybe<SortOrder>;
-    price?: Maybe<SortOrder>;
-    priceWithTax?: Maybe<SortOrder>;
 };
 
 export type HistoryEntryFilterParameter = {
@@ -4597,6 +4608,21 @@ export type GetProductCollectionsWithParentQuery = {
         Pick<Product, 'id'> & {
             collections: Array<
                 Pick<Collection, 'id' | 'name'> & { parent?: Maybe<Pick<Collection, 'id' | 'name'>> }
+            >;
+        }
+    >;
+};
+
+export type GetCheckersQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetCheckersQuery = {
+    shippingEligibilityCheckers: Array<
+        Pick<ConfigurableOperationDefinition, 'code'> & {
+            args: Array<
+                Pick<
+                    ConfigArgDefinition,
+                    'defaultValue' | 'description' | 'label' | 'list' | 'name' | 'required' | 'type'
+                >
             >;
         }
     >;
@@ -5094,8 +5120,8 @@ export type ProductWithOptionsFragment = Pick<Product, 'id'> & {
 };
 
 export type ShippingMethodFragment = Pick<ShippingMethod, 'id' | 'code' | 'name' | 'description'> & {
-    calculator: Pick<ConfigurableOperation, 'code'>;
-    checker: Pick<ConfigurableOperation, 'code'>;
+    calculator: Pick<ConfigurableOperation, 'code'> & { args: Array<Pick<ConfigArg, 'name' | 'value'>> };
+    checker: Pick<ConfigurableOperation, 'code'> & { args: Array<Pick<ConfigArg, 'name' | 'value'>> };
 };
 
 export type CreateAdministratorMutationVariables = Exact<{
@@ -5689,6 +5715,12 @@ export type GetOrderHistoryQuery = {
     >;
 };
 
+export type UpdateShippingMethodMutationVariables = Exact<{
+    input: UpdateShippingMethodInput;
+}>;
+
+export type UpdateShippingMethodMutation = { updateShippingMethod: ShippingMethodFragment };
+
 export type CancelJobMutationVariables = Exact<{
     id: Scalars['ID'];
 }>;
@@ -5921,6 +5953,16 @@ export type GetProductVariantQueryVariables = Exact<{
 
 export type GetProductVariantQuery = { productVariant?: Maybe<Pick<ProductVariant, 'id' | 'name'>> };
 
+export type GetProductVariantListQueryVariables = Exact<{
+    options?: Maybe<ProductVariantListOptions>;
+}>;
+
+export type GetProductVariantListQuery = {
+    productVariants: Pick<ProductVariantList, 'totalItems'> & {
+        items: Array<Pick<ProductVariant, 'id' | 'name' | 'sku' | 'price'>>;
+    };
+};
+
 export type DeletePromotionMutationVariables = Exact<{
     id: Scalars['ID'];
 }>;
@@ -5994,12 +6036,6 @@ export type GetShippingMethodQueryVariables = Exact<{
 }>;
 
 export type GetShippingMethodQuery = { shippingMethod?: Maybe<ShippingMethodFragment> };
-
-export type UpdateShippingMethodMutationVariables = Exact<{
-    input: UpdateShippingMethodInput;
-}>;
-
-export type UpdateShippingMethodMutation = { updateShippingMethod: ShippingMethodFragment };
 
 export type DeleteShippingMethodMutationVariables = Exact<{
     id: Scalars['ID'];
@@ -6546,6 +6582,19 @@ export namespace GetProductCollectionsWithParent {
         NonNullable<
             NonNullable<NonNullable<GetProductCollectionsWithParentQuery['product']>['collections']>[number]
         >['parent']
+    >;
+}
+
+export namespace GetCheckers {
+    export type Variables = GetCheckersQueryVariables;
+    export type Query = GetCheckersQuery;
+    export type ShippingEligibilityCheckers = NonNullable<
+        NonNullable<GetCheckersQuery['shippingEligibilityCheckers']>[number]
+    >;
+    export type Args = NonNullable<
+        NonNullable<
+            NonNullable<NonNullable<GetCheckersQuery['shippingEligibilityCheckers']>[number]>['args']
+        >[number]
     >;
 }
 
@@ -7105,7 +7154,13 @@ export namespace ProductWithOptions {
 export namespace ShippingMethod {
     export type Fragment = ShippingMethodFragment;
     export type Calculator = NonNullable<ShippingMethodFragment['calculator']>;
+    export type Args = NonNullable<
+        NonNullable<NonNullable<ShippingMethodFragment['calculator']>['args']>[number]
+    >;
     export type Checker = NonNullable<ShippingMethodFragment['checker']>;
+    export type _Args = NonNullable<
+        NonNullable<NonNullable<ShippingMethodFragment['checker']>['args']>[number]
+    >;
 }
 
 export namespace CreateAdministrator {
@@ -7686,6 +7741,12 @@ export namespace GetOrderHistory {
     >;
 }
 
+export namespace UpdateShippingMethod {
+    export type Variables = UpdateShippingMethodMutationVariables;
+    export type Mutation = UpdateShippingMethodMutation;
+    export type UpdateShippingMethod = NonNullable<UpdateShippingMethodMutation['updateShippingMethod']>;
+}
+
 export namespace CancelJob {
     export type Variables = CancelJobMutationVariables;
     export type Mutation = CancelJobMutation;
@@ -7926,6 +7987,15 @@ export namespace GetProductVariant {
     export type ProductVariant = NonNullable<GetProductVariantQuery['productVariant']>;
 }
 
+export namespace GetProductVariantList {
+    export type Variables = GetProductVariantListQueryVariables;
+    export type Query = GetProductVariantListQuery;
+    export type ProductVariants = NonNullable<GetProductVariantListQuery['productVariants']>;
+    export type Items = NonNullable<
+        NonNullable<NonNullable<GetProductVariantListQuery['productVariants']>['items']>[number]
+    >;
+}
+
 export namespace DeletePromotion {
     export type Variables = DeletePromotionMutationVariables;
     export type Mutation = DeletePromotionMutation;
@@ -8011,12 +8081,6 @@ export namespace GetShippingMethod {
     export type Variables = GetShippingMethodQueryVariables;
     export type Query = GetShippingMethodQuery;
     export type ShippingMethod = NonNullable<GetShippingMethodQuery['shippingMethod']>;
-}
-
-export namespace UpdateShippingMethod {
-    export type Variables = UpdateShippingMethodMutationVariables;
-    export type Mutation = UpdateShippingMethodMutation;
-    export type UpdateShippingMethod = NonNullable<UpdateShippingMethodMutation['updateShippingMethod']>;
 }
 
 export namespace DeleteShippingMethod {

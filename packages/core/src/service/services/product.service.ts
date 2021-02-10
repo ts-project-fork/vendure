@@ -131,17 +131,18 @@ export class ProductService {
     }
 
     async findOneBySlug(ctx: RequestContext, slug: string): Promise<Translated<Product> | undefined> {
-        const translation = await this.connection.getRepository(ctx, ProductTranslation).findOne({
+        const translations = await this.connection.getRepository(ctx, ProductTranslation).find({
             relations: ['base'],
-            where: {
-                languageCode: ctx.languageCode,
-                slug,
-            },
+            where: { slug },
         });
-        if (!translation) {
+        if (!translations?.length) {
             return;
         }
-        return this.findOne(ctx, translation.base.id);
+        const bestMatch =
+            translations.find(t => t.languageCode === ctx.languageCode) ??
+            translations.find(t => t.languageCode === ctx.channel.defaultLanguageCode) ??
+            translations[0];
+        return this.findOne(ctx, bestMatch.base.id);
     }
 
     async create(ctx: RequestContext, input: CreateProductInput): Promise<Translated<Product>> {
@@ -165,7 +166,7 @@ export class ProductService {
     }
 
     async update(ctx: RequestContext, input: UpdateProductInput): Promise<Translated<Product>> {
-        await this.connection.getEntityOrThrow(ctx, Product, input.id);
+        await this.connection.getEntityOrThrow(ctx, Product, input.id, { channelId: ctx.channelId });
         await this.slugValidator.validateSlugs(ctx, input, ProductTranslation);
         const product = await this.translatableSaver.update({
             ctx,

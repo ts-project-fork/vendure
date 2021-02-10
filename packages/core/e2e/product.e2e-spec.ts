@@ -22,6 +22,7 @@ import {
     GetProductList,
     GetProductSimple,
     GetProductVariant,
+    GetProductVariantList,
     GetProductWithVariants,
     LanguageCode,
     ProductVariantFragment,
@@ -251,6 +252,21 @@ describe('Product resolver', () => {
             expect(product.slug).toBe('curvy-monitor');
         });
 
+        // https://github.com/vendure-ecommerce/vendure/issues/538
+        it('falls back to default language slug', async () => {
+            const { product } = await adminClient.query<GetProductSimple.Query, GetProductSimple.Variables>(
+                GET_PRODUCT_SIMPLE,
+                { slug: 'curvy-monitor' },
+                { languageCode: LanguageCode.de },
+            );
+
+            if (!product) {
+                fail('Product not found');
+                return;
+            }
+            expect(product.slug).toBe('curvy-monitor');
+        });
+
         it(
             'throws if neither id nor slug provided',
             assertThrowsWithMessage(async () => {
@@ -318,6 +334,43 @@ describe('Product resolver', () => {
             });
 
             expect(result.product).toBeNull();
+        });
+    });
+
+    describe('productVariants list query', () => {
+        it('returns list', async () => {
+            const { productVariants } = await adminClient.query<
+                GetProductVariantList.Query,
+                GetProductVariantList.Variables
+            >(GET_PRODUCT_VARIANT_LIST, {
+                options: {
+                    take: 3,
+                    sort: {
+                        name: SortOrder.ASC,
+                    },
+                },
+            });
+
+            expect(productVariants.items).toEqual([
+                {
+                    id: 'T_34',
+                    name: 'Bonsai Tree',
+                    price: 1999,
+                    sku: 'B01MXFLUSV',
+                },
+                {
+                    id: 'T_24',
+                    name: 'Boxing Gloves',
+                    price: 3304,
+                    sku: 'B000ZYLPPU',
+                },
+                {
+                    id: 'T_19',
+                    name: 'Camera Lens',
+                    price: 10400,
+                    sku: 'B0012UUP02',
+                },
+            ]);
         });
     });
 
@@ -1243,6 +1296,20 @@ export const GET_PRODUCT_VARIANT = gql`
         productVariant(id: $id) {
             id
             name
+        }
+    }
+`;
+
+export const GET_PRODUCT_VARIANT_LIST = gql`
+    query GetProductVariantLIST($options: ProductVariantListOptions) {
+        productVariants(options: $options) {
+            items {
+                id
+                name
+                sku
+                price
+            }
+            totalItems
         }
     }
 `;
