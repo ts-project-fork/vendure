@@ -317,6 +317,7 @@ export const ORDER_FRAGMENT = gql`
         createdAt
         updatedAt
         code
+        active
         state
         total
         totalWithTax
@@ -339,6 +340,23 @@ export const ORDER_ITEM_FRAGMENT = gql`
         taxRate
         fulfillment {
             id
+        }
+    }
+`;
+
+export const PAYMENT_FRAGMENT = gql`
+    fragment Payment on Payment {
+        id
+        transactionId
+        amount
+        method
+        state
+        nextStates
+        metadata
+        refunds {
+            id
+            total
+            reason
         }
     }
 `;
@@ -390,9 +408,11 @@ export const ORDER_WITH_LINES_FRAGMENT = gql`
         shipping
         shippingWithTax
         shippingLines {
+            priceWithTax
             shippingMethod {
                 id
                 code
+                name
                 description
             }
         }
@@ -400,22 +420,13 @@ export const ORDER_WITH_LINES_FRAGMENT = gql`
             ...ShippingAddress
         }
         payments {
-            id
-            transactionId
-            amount
-            method
-            state
-            metadata
-            refunds {
-                id
-                total
-                reason
-            }
+            ...Payment
         }
         total
     }
     ${SHIPPING_ADDRESS_FRAGMENT}
     ${ORDER_ITEM_FRAGMENT}
+    ${PAYMENT_FRAGMENT}
 `;
 
 export const PROMOTION_FRAGMENT = gql`

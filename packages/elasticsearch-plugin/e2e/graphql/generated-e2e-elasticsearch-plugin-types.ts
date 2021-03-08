@@ -1,6 +1,8 @@
 // tslint:disable
 export type Maybe<T> = T | null;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
+export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
     ID: string;
@@ -49,6 +51,8 @@ export type Query = {
     orders: OrderList;
     paymentMethods: PaymentMethodList;
     paymentMethod?: Maybe<PaymentMethod>;
+    paymentMethodEligibilityCheckers: Array<ConfigurableOperationDefinition>;
+    paymentMethodHandlers: Array<ConfigurableOperationDefinition>;
     productOptionGroups: Array<ProductOptionGroup>;
     productOptionGroup?: Maybe<ProductOptionGroup>;
     search: SearchResponse;
@@ -73,6 +77,8 @@ export type Query = {
     fulfillmentHandlers: Array<ConfigurableOperationDefinition>;
     testShippingMethod: TestShippingMethodResult;
     testEligibleShippingMethods: Array<ShippingMethodQuote>;
+    tag: Tag;
+    tags: TagList;
     taxCategories: Array<TaxCategory>;
     taxCategory?: Maybe<TaxCategory>;
     taxRates: TaxRateList;
@@ -231,6 +237,14 @@ export type QueryTestEligibleShippingMethodsArgs = {
     input: TestEligibleShippingMethodsInput;
 };
 
+export type QueryTagArgs = {
+    id: Scalars['ID'];
+};
+
+export type QueryTagsArgs = {
+    options?: Maybe<TagListOptions>;
+};
+
 export type QueryTaxCategoryArgs = {
     id: Scalars['ID'];
 };
@@ -266,6 +280,8 @@ export type Mutation = {
     deleteAsset: DeletionResponse;
     /** Delete multiple Assets */
     deleteAssets: DeletionResponse;
+    /** Assign assets to channel */
+    assignAssetsToChannel: Array<Asset>;
     /** Authenticates the user using the native authentication strategy. This mutation is an alias for `authenticate({ native: { ... }})` */
     login: NativeAuthenticationResult;
     /** Authenticates the user using a named authentication strategy */
@@ -343,6 +359,7 @@ export type Mutation = {
     deleteOrderNote: DeletionResponse;
     transitionOrderToState?: Maybe<TransitionOrderToStateResult>;
     transitionFulfillmentToState: TransitionFulfillmentToStateResult;
+    transitionPaymentToState: TransitionPaymentToStateResult;
     setOrderCustomFields?: Maybe<Order>;
     /**
      * Allows an Order to be modified after it has been completed by the Customer. The Order must first
@@ -356,6 +373,8 @@ export type Mutation = {
      * Payment.
      */
     addManualPaymentToOrder: AddManualPaymentToOrderResult;
+    /** Create existing PaymentMethod */
+    createPaymentMethod: PaymentMethod;
     /** Update an existing PaymentMethod */
     updatePaymentMethod: PaymentMethod;
     /** Create a new ProductOptionGroup */
@@ -406,6 +425,12 @@ export type Mutation = {
     updateShippingMethod: ShippingMethod;
     /** Delete a ShippingMethod */
     deleteShippingMethod: DeletionResponse;
+    /** Create a new Tag */
+    createTag: Tag;
+    /** Update an existing Tag */
+    updateTag: Tag;
+    /** Delete an existing Tag */
+    deleteTag: DeletionResponse;
     /** Create a new TaxCategory */
     createTaxCategory: TaxCategory;
     /** Update an existing TaxCategory */
@@ -460,13 +485,15 @@ export type MutationUpdateAssetArgs = {
 };
 
 export type MutationDeleteAssetArgs = {
-    id: Scalars['ID'];
-    force?: Maybe<Scalars['Boolean']>;
+    input: DeleteAssetInput;
 };
 
 export type MutationDeleteAssetsArgs = {
-    ids: Array<Scalars['ID']>;
-    force?: Maybe<Scalars['Boolean']>;
+    input: DeleteAssetsInput;
+};
+
+export type MutationAssignAssetsToChannelArgs = {
+    input: AssignAssetsToChannelInput;
 };
 
 export type MutationLoginArgs = {
@@ -665,6 +692,11 @@ export type MutationTransitionFulfillmentToStateArgs = {
     state: Scalars['String'];
 };
 
+export type MutationTransitionPaymentToStateArgs = {
+    id: Scalars['ID'];
+    state: Scalars['String'];
+};
+
 export type MutationSetOrderCustomFieldsArgs = {
     input: UpdateOrderInput;
 };
@@ -675,6 +707,10 @@ export type MutationModifyOrderArgs = {
 
 export type MutationAddManualPaymentToOrderArgs = {
     input: ManualPaymentInput;
+};
+
+export type MutationCreatePaymentMethodArgs = {
+    input: CreatePaymentMethodInput;
 };
 
 export type MutationUpdatePaymentMethodArgs = {
@@ -783,6 +819,18 @@ export type MutationDeleteShippingMethodArgs = {
     id: Scalars['ID'];
 };
 
+export type MutationCreateTagArgs = {
+    input: CreateTagInput;
+};
+
+export type MutationUpdateTagArgs = {
+    input: UpdateTagInput;
+};
+
+export type MutationDeleteTagArgs = {
+    id: Scalars['ID'];
+};
+
 export type MutationCreateTaxCategoryArgs = {
     input: CreateTaxCategoryInput;
 };
@@ -835,6 +883,7 @@ export type CreateAdministratorInput = {
     emailAddress: Scalars['String'];
     password: Scalars['String'];
     roleIds: Array<Scalars['ID']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type UpdateAdministratorInput = {
@@ -844,6 +893,7 @@ export type UpdateAdministratorInput = {
     emailAddress?: Maybe<Scalars['String']>;
     password?: Maybe<Scalars['String']>;
     roleIds?: Maybe<Array<Scalars['ID']>>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type UpdateActiveAdministratorInput = {
@@ -851,6 +901,7 @@ export type UpdateActiveAdministratorInput = {
     lastName?: Maybe<Scalars['String']>;
     emailAddress?: Maybe<Scalars['String']>;
     password?: Maybe<Scalars['String']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type Administrator = Node & {
@@ -861,11 +912,29 @@ export type Administrator = Node & {
     lastName: Scalars['String'];
     emailAddress: Scalars['String'];
     user: User;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type AdministratorList = PaginatedList & {
     items: Array<Administrator>;
     totalItems: Scalars['Int'];
+};
+
+export type Asset = Node & {
+    tags: Array<Tag>;
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    name: Scalars['String'];
+    type: AssetType;
+    fileSize: Scalars['Int'];
+    mimeType: Scalars['String'];
+    width: Scalars['Int'];
+    height: Scalars['Int'];
+    source: Scalars['String'];
+    preview: Scalars['String'];
+    focalPoint?: Maybe<Coordinate>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type MimeTypeError = ErrorResult & {
@@ -877,8 +946,19 @@ export type MimeTypeError = ErrorResult & {
 
 export type CreateAssetResult = Asset | MimeTypeError;
 
+export type AssetListOptions = {
+    skip?: Maybe<Scalars['Int']>;
+    take?: Maybe<Scalars['Int']>;
+    sort?: Maybe<AssetSortParameter>;
+    filter?: Maybe<AssetFilterParameter>;
+    tags?: Maybe<Array<Scalars['String']>>;
+    tagsOperator?: Maybe<LogicalOperator>;
+};
+
 export type CreateAssetInput = {
     file: Scalars['Upload'];
+    tags?: Maybe<Array<Scalars['String']>>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type CoordinateInput = {
@@ -886,10 +966,29 @@ export type CoordinateInput = {
     y: Scalars['Float'];
 };
 
+export type DeleteAssetInput = {
+    assetId: Scalars['ID'];
+    force?: Maybe<Scalars['Boolean']>;
+    deleteFromAllChannels?: Maybe<Scalars['Boolean']>;
+};
+
+export type DeleteAssetsInput = {
+    assetIds: Array<Scalars['ID']>;
+    force?: Maybe<Scalars['Boolean']>;
+    deleteFromAllChannels?: Maybe<Scalars['Boolean']>;
+};
+
 export type UpdateAssetInput = {
     id: Scalars['ID'];
     name?: Maybe<Scalars['String']>;
     focalPoint?: Maybe<CoordinateInput>;
+    tags?: Maybe<Array<Scalars['String']>>;
+    customFields?: Maybe<Scalars['JSON']>;
+};
+
+export type AssignAssetsToChannelInput = {
+    assetIds: Array<Scalars['ID']>;
+    channelId: Scalars['ID'];
 };
 
 export type NativeAuthenticationResult = CurrentUser | InvalidCredentialsError | NativeAuthStrategyError;
@@ -904,6 +1003,7 @@ export type CreateChannelInput = {
     currencyCode: CurrencyCode;
     defaultTaxZoneId: Scalars['ID'];
     defaultShippingZoneId: Scalars['ID'];
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type UpdateChannelInput = {
@@ -915,6 +1015,7 @@ export type UpdateChannelInput = {
     currencyCode?: Maybe<CurrencyCode>;
     defaultTaxZoneId?: Maybe<Scalars['ID']>;
     defaultShippingZoneId?: Maybe<Scalars['ID']>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 /** Returned if attempting to set a Channel's defaultLanguageCode to a language which is not enabled in GlobalSettings */
@@ -1327,6 +1428,20 @@ export type Fulfillment = Node & {
     customFields?: Maybe<Scalars['JSON']>;
 };
 
+export type Payment = Node & {
+    nextStates: Array<Scalars['String']>;
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    method: Scalars['String'];
+    amount: Scalars['Int'];
+    state: Scalars['String'];
+    transactionId?: Maybe<Scalars['String']>;
+    errorMessage?: Maybe<Scalars['String']>;
+    refunds: Array<Refund>;
+    metadata?: Maybe<Scalars['JSON']>;
+};
+
 export type OrderModification = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
@@ -1649,6 +1764,8 @@ export type SettleRefundResult = Refund | RefundStateTransitionError;
 
 export type TransitionFulfillmentToStateResult = Fulfillment | FulfillmentStateTransitionError;
 
+export type TransitionPaymentToStateResult = Payment | PaymentStateTransitionError;
+
 export type ModifyOrderResult =
     | Order
     | NoChangesSpecifiedError
@@ -1666,21 +1783,35 @@ export type PaymentMethodList = PaginatedList & {
     totalItems: Scalars['Int'];
 };
 
+export type CreatePaymentMethodInput = {
+    name: Scalars['String'];
+    code: Scalars['String'];
+    description?: Maybe<Scalars['String']>;
+    enabled: Scalars['Boolean'];
+    checker?: Maybe<ConfigurableOperationInput>;
+    handler: ConfigurableOperationInput;
+};
+
 export type UpdatePaymentMethodInput = {
     id: Scalars['ID'];
+    name?: Maybe<Scalars['String']>;
     code?: Maybe<Scalars['String']>;
+    description?: Maybe<Scalars['String']>;
     enabled?: Maybe<Scalars['Boolean']>;
-    configArgs?: Maybe<Array<ConfigArgInput>>;
+    checker?: Maybe<ConfigurableOperationInput>;
+    handler?: Maybe<ConfigurableOperationInput>;
 };
 
 export type PaymentMethod = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
+    name: Scalars['String'];
     code: Scalars['String'];
+    description: Scalars['String'];
     enabled: Scalars['Boolean'];
-    configArgs: Array<ConfigArg>;
-    definition: ConfigurableOperationDefinition;
+    checker?: Maybe<ConfigurableOperation>;
+    handler: ConfigurableOperation;
 };
 
 export type Product = Node & {
@@ -1727,6 +1858,7 @@ export type ProductVariant = Node & {
     /** @deprecated price now always excludes tax */
     priceIncludesTax: Scalars['Boolean'];
     priceWithTax: Scalars['Int'];
+    stockLevel: Scalars['String'];
     taxRateApplied: TaxRate;
     taxCategory: TaxCategory;
     options: Array<ProductOption>;
@@ -2119,13 +2251,24 @@ export type StockMovementList = {
     totalItems: Scalars['Int'];
 };
 
+export type CreateTagInput = {
+    value: Scalars['String'];
+};
+
+export type UpdateTagInput = {
+    id: Scalars['ID'];
+    value?: Maybe<Scalars['String']>;
+};
+
 export type CreateTaxCategoryInput = {
     name: Scalars['String'];
+    isDefault?: Maybe<Scalars['Boolean']>;
 };
 
 export type UpdateTaxCategoryInput = {
     id: Scalars['ID'];
     name?: Maybe<Scalars['String']>;
+    isDefault?: Maybe<Scalars['Boolean']>;
 };
 
 export type CreateTaxRateInput = {
@@ -2175,21 +2318,6 @@ export type Address = Node & {
     customFields?: Maybe<Scalars['JSON']>;
 };
 
-export type Asset = Node & {
-    id: Scalars['ID'];
-    createdAt: Scalars['DateTime'];
-    updatedAt: Scalars['DateTime'];
-    name: Scalars['String'];
-    type: AssetType;
-    fileSize: Scalars['Int'];
-    mimeType: Scalars['String'];
-    width: Scalars['Int'];
-    height: Scalars['Int'];
-    source: Scalars['String'];
-    preview: Scalars['String'];
-    focalPoint?: Maybe<Coordinate>;
-};
-
 export type Coordinate = {
     x: Scalars['Float'];
     y: Scalars['Float'];
@@ -2230,6 +2358,7 @@ export type Channel = Node & {
     defaultLanguageCode: LanguageCode;
     currencyCode: CurrencyCode;
     pricesIncludeTax: Scalars['Boolean'];
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type CollectionBreadcrumb = {
@@ -2474,7 +2603,7 @@ export type ConfigArgDefinition = {
     type: Scalars['String'];
     list: Scalars['Boolean'];
     required: Scalars['Boolean'];
-    defaultValue?: Maybe<Scalars['String']>;
+    defaultValue?: Maybe<Scalars['JSON']>;
     label?: Maybe<Scalars['String']>;
     description?: Maybe<Scalars['String']>;
     ui?: Maybe<Scalars['JSON']>;
@@ -2607,6 +2736,23 @@ export type UpdateAddressInput = {
 /** Indicates that an operation succeeded, where we do not want to return any more specific information. */
 export type Success = {
     success: Scalars['Boolean'];
+};
+
+export type ShippingMethodQuote = {
+    id: Scalars['ID'];
+    price: Scalars['Int'];
+    priceWithTax: Scalars['Int'];
+    name: Scalars['String'];
+    description: Scalars['String'];
+    /** Any optional metadata returned by the ShippingCalculator in the ShippingCalculationResult */
+    metadata?: Maybe<Scalars['JSON']>;
+};
+
+export type PaymentMethodQuote = {
+    id: Scalars['ID'];
+    code: Scalars['String'];
+    isEligible: Scalars['Boolean'];
+    eligibilityMessage?: Maybe<Scalars['String']>;
 };
 
 export type Country = Node & {
@@ -3049,6 +3195,18 @@ export type DateTimeCustomFieldConfig = CustomField & {
     step?: Maybe<Scalars['Int']>;
 };
 
+export type RelationCustomFieldConfig = CustomField & {
+    name: Scalars['String'];
+    type: Scalars['String'];
+    list: Scalars['Boolean'];
+    label?: Maybe<Array<LocalizedString>>;
+    description?: Maybe<Array<LocalizedString>>;
+    readonly?: Maybe<Scalars['Boolean']>;
+    internal?: Maybe<Scalars['Boolean']>;
+    entity: Scalars['String'];
+    scalarFields: Array<Scalars['String']>;
+};
+
 export type LocalizedString = {
     languageCode: LanguageCode;
     value: Scalars['String'];
@@ -3060,7 +3218,8 @@ export type CustomFieldConfig =
     | IntCustomFieldConfig
     | FloatCustomFieldConfig
     | BooleanCustomFieldConfig
-    | DateTimeCustomFieldConfig;
+    | DateTimeCustomFieldConfig
+    | RelationCustomFieldConfig;
 
 export type CustomerGroup = Node & {
     id: Scalars['ID'];
@@ -3504,15 +3663,6 @@ export type OrderList = PaginatedList & {
     totalItems: Scalars['Int'];
 };
 
-export type ShippingMethodQuote = {
-    id: Scalars['ID'];
-    price: Scalars['Int'];
-    priceWithTax: Scalars['Int'];
-    name: Scalars['String'];
-    description: Scalars['String'];
-    metadata?: Maybe<Scalars['JSON']>;
-};
-
 export type ShippingLine = {
     shippingMethod: ShippingMethod;
     price: Scalars['Int'];
@@ -3570,6 +3720,10 @@ export type OrderLine = Node & {
     unitPrice: Scalars['Int'];
     /** The price of a single unit, including tax but excluding discounts */
     unitPriceWithTax: Scalars['Int'];
+    /** Non-zero if the unitPrice has changed since it was initially added to Order */
+    unitPriceChangeSinceAdded: Scalars['Int'];
+    /** Non-zero if the unitPriceWithTax has changed since it was initially added to Order */
+    unitPriceWithTaxChangeSinceAdded: Scalars['Int'];
     /**
      * The price of a single unit including discounts, excluding tax.
      *
@@ -3618,19 +3772,6 @@ export type OrderLine = Node & {
     taxLines: Array<TaxLine>;
     order: Order;
     customFields?: Maybe<Scalars['JSON']>;
-};
-
-export type Payment = Node & {
-    id: Scalars['ID'];
-    createdAt: Scalars['DateTime'];
-    updatedAt: Scalars['DateTime'];
-    method: Scalars['String'];
-    amount: Scalars['Int'];
-    state: Scalars['String'];
-    transactionId?: Maybe<Scalars['String']>;
-    errorMessage?: Maybe<Scalars['String']>;
-    refunds: Array<Refund>;
-    metadata?: Maybe<Scalars['JSON']>;
 };
 
 export type Refund = Node & {
@@ -3827,11 +3968,24 @@ export type ShippingMethodList = PaginatedList & {
     totalItems: Scalars['Int'];
 };
 
+export type Tag = Node & {
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    value: Scalars['String'];
+};
+
+export type TagList = PaginatedList & {
+    items: Array<Tag>;
+    totalItems: Scalars['Int'];
+};
+
 export type TaxCategory = Node & {
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     name: Scalars['String'];
+    isDefault: Scalars['Boolean'];
 };
 
 export type TaxRate = Node & {
@@ -3883,13 +4037,6 @@ export type AdministratorListOptions = {
     take?: Maybe<Scalars['Int']>;
     sort?: Maybe<AdministratorSortParameter>;
     filter?: Maybe<AdministratorFilterParameter>;
-};
-
-export type AssetListOptions = {
-    skip?: Maybe<Scalars['Int']>;
-    take?: Maybe<Scalars['Int']>;
-    sort?: Maybe<AssetSortParameter>;
-    filter?: Maybe<AssetFilterParameter>;
 };
 
 export type CollectionListOptions = {
@@ -3981,6 +4128,13 @@ export type ShippingMethodListOptions = {
     take?: Maybe<Scalars['Int']>;
     sort?: Maybe<ShippingMethodSortParameter>;
     filter?: Maybe<ShippingMethodFilterParameter>;
+};
+
+export type TagListOptions = {
+    skip?: Maybe<Scalars['Int']>;
+    take?: Maybe<Scalars['Int']>;
+    sort?: Maybe<TagSortParameter>;
+    filter?: Maybe<TagFilterParameter>;
 };
 
 export type TaxRateListOptions = {
@@ -4186,7 +4340,9 @@ export type OrderSortParameter = {
 export type PaymentMethodFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
+    name?: Maybe<StringOperators>;
     code?: Maybe<StringOperators>;
+    description?: Maybe<StringOperators>;
     enabled?: Maybe<BooleanOperators>;
 };
 
@@ -4194,7 +4350,9 @@ export type PaymentMethodSortParameter = {
     id?: Maybe<SortOrder>;
     createdAt?: Maybe<SortOrder>;
     updatedAt?: Maybe<SortOrder>;
+    name?: Maybe<SortOrder>;
     code?: Maybe<SortOrder>;
+    description?: Maybe<SortOrder>;
 };
 
 export type ProductFilterParameter = {
@@ -4232,6 +4390,7 @@ export type ProductVariantFilterParameter = {
     currencyCode?: Maybe<StringOperators>;
     priceIncludesTax?: Maybe<BooleanOperators>;
     priceWithTax?: Maybe<NumberOperators>;
+    stockLevel?: Maybe<StringOperators>;
 };
 
 export type ProductVariantSortParameter = {
@@ -4246,6 +4405,7 @@ export type ProductVariantSortParameter = {
     name?: Maybe<SortOrder>;
     price?: Maybe<SortOrder>;
     priceWithTax?: Maybe<SortOrder>;
+    stockLevel?: Maybe<SortOrder>;
 };
 
 export type PromotionFilterParameter = {
@@ -4304,6 +4464,19 @@ export type ShippingMethodSortParameter = {
     fulfillmentHandlerCode?: Maybe<SortOrder>;
 };
 
+export type TagFilterParameter = {
+    createdAt?: Maybe<DateOperators>;
+    updatedAt?: Maybe<DateOperators>;
+    value?: Maybe<StringOperators>;
+};
+
+export type TagSortParameter = {
+    id?: Maybe<SortOrder>;
+    createdAt?: Maybe<SortOrder>;
+    updatedAt?: Maybe<SortOrder>;
+    value?: Maybe<SortOrder>;
+};
+
 export type TaxRateFilterParameter = {
     createdAt?: Maybe<DateOperators>;
     updatedAt?: Maybe<DateOperators>;
@@ -4344,6 +4517,9 @@ export type NativeAuthInput = {
 
 export type CustomFields = {
     Address: Array<CustomFieldConfig>;
+    Administrator: Array<CustomFieldConfig>;
+    Asset: Array<CustomFieldConfig>;
+    Channel: Array<CustomFieldConfig>;
     Collection: Array<CustomFieldConfig>;
     Customer: Array<CustomFieldConfig>;
     Facet: Array<CustomFieldConfig>;

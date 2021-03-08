@@ -1,4 +1,3 @@
-import { Transport } from '@nestjs/microservices';
 import { LanguageCode } from '@vendure/common/lib/generated-types';
 import {
     DEFAULT_AUTH_TOKEN_HEADER_KEY,
@@ -14,10 +13,13 @@ import { NoAssetStorageStrategy } from './asset-storage-strategy/no-asset-storag
 import { NativeAuthenticationStrategy } from './auth/native-authentication-strategy';
 import { defaultCollectionFilters } from './catalog/default-collection-filters';
 import { DefaultProductVariantPriceCalculationStrategy } from './catalog/default-product-variant-price-calculation-strategy';
+import { DefaultStockDisplayStrategy } from './catalog/default-stock-display-strategy';
 import { AutoIncrementIdStrategy } from './entity-id-strategy/auto-increment-id-strategy';
 import { manualFulfillmentHandler } from './fulfillment/manual-fulfillment-handler';
 import { DefaultLogger } from './logger/default-logger';
+import { DefaultChangedPriceHandlingStrategy } from './order/default-changed-price-handling-strategy';
 import { DefaultOrderItemPriceCalculationStrategy } from './order/default-order-item-price-calculation-strategy';
+import { DefaultOrderPlacedStrategy } from './order/default-order-placed-strategy';
 import { DefaultStockAllocationStrategy } from './order/default-stock-allocation-strategy';
 import { MergeOrdersStrategy } from './order/merge-orders-strategy';
 import { DefaultOrderCodeStrategy } from './order/order-code-strategy';
@@ -82,6 +84,7 @@ export const defaultConfig: RuntimeVendureConfig = {
     catalogOptions: {
         collectionFilters: defaultCollectionFilters,
         productVariantPriceCalculationStrategy: new DefaultProductVariantPriceCalculationStrategy(),
+        stockDisplayStrategy: new DefaultStockDisplayStrategy(),
     },
     entityIdStrategy: new AutoIncrementIdStrategy(),
     assetOptions: {
@@ -107,15 +110,20 @@ export const defaultConfig: RuntimeVendureConfig = {
     },
     orderOptions: {
         orderItemsLimit: 999,
+        orderLineItemsLimit: 999,
         orderItemPriceCalculationStrategy: new DefaultOrderItemPriceCalculationStrategy(),
         mergeStrategy: new MergeOrdersStrategy(),
         checkoutMergeStrategy: new UseGuestStrategy(),
         process: [],
         stockAllocationStrategy: new DefaultStockAllocationStrategy(),
         orderCodeStrategy: new DefaultOrderCodeStrategy(),
+        changedPriceHandlingStrategy: new DefaultChangedPriceHandlingStrategy(),
+        orderPlacedStrategy: new DefaultOrderPlacedStrategy(),
     },
     paymentOptions: {
+        paymentMethodEligibilityCheckers: [],
         paymentMethodHandlers: [],
+        customPaymentProcess: [],
     },
     taxOptions: {
         taxZoneStrategy: new DefaultTaxZoneStrategy(),
@@ -124,19 +132,15 @@ export const defaultConfig: RuntimeVendureConfig = {
     importExportOptions: {
         importAssetsDir: __dirname,
     },
-    workerOptions: {
-        runInMainProcess: false,
-        transport: Transport.TCP,
-        options: {
-            port: 3020,
-        },
-    },
     jobQueueOptions: {
         jobQueueStrategy: new InMemoryJobQueueStrategy(),
-        pollInterval: 200,
+        activeQueues: [],
     },
     customFields: {
         Address: [],
+        Administrator: [],
+        Asset: [],
+        Channel: [],
         Collection: [],
         Customer: [],
         Facet: [],

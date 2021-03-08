@@ -1,6 +1,8 @@
 // tslint:disable
 export type Maybe<T> = T;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
+export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
     ID: string | number;
@@ -36,6 +38,8 @@ export type Query = {
     collection?: Maybe<Collection>;
     /** Returns a list of eligible shipping methods based on the current active Order */
     eligibleShippingMethods: Array<ShippingMethodQuote>;
+    /** Returns a list of payment methods and their eligibility based on the current active Order */
+    eligiblePaymentMethods: Array<PaymentMethodQuote>;
     /** Returns information about the current authenticated User */
     me?: Maybe<CurrentUser>;
     /** Returns the possible next states that the activeOrder can transition to */
@@ -324,6 +328,7 @@ export type Asset = Node & {
     source: Scalars['String'];
     preview: Scalars['String'];
     focalPoint?: Maybe<Coordinate>;
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type Coordinate = {
@@ -371,6 +376,7 @@ export type Channel = Node & {
     defaultLanguageCode: LanguageCode;
     currencyCode: CurrencyCode;
     pricesIncludeTax: Scalars['Boolean'];
+    customFields?: Maybe<Scalars['JSON']>;
 };
 
 export type Collection = Node & {
@@ -529,6 +535,7 @@ export enum ErrorCode {
     ORDER_MODIFICATION_ERROR = 'ORDER_MODIFICATION_ERROR',
     INELIGIBLE_SHIPPING_METHOD_ERROR = 'INELIGIBLE_SHIPPING_METHOD_ERROR',
     ORDER_PAYMENT_STATE_ERROR = 'ORDER_PAYMENT_STATE_ERROR',
+    INELIGIBLE_PAYMENT_METHOD_ERROR = 'INELIGIBLE_PAYMENT_METHOD_ERROR',
     PAYMENT_FAILED_ERROR = 'PAYMENT_FAILED_ERROR',
     PAYMENT_DECLINED_ERROR = 'PAYMENT_DECLINED_ERROR',
     COUPON_CODE_INVALID_ERROR = 'COUPON_CODE_INVALID_ERROR',
@@ -648,7 +655,7 @@ export type ConfigArgDefinition = {
     type: Scalars['String'];
     list: Scalars['Boolean'];
     required: Scalars['Boolean'];
-    defaultValue?: Maybe<Scalars['String']>;
+    defaultValue?: Maybe<Scalars['JSON']>;
     label?: Maybe<Scalars['String']>;
     description?: Maybe<Scalars['String']>;
     ui?: Maybe<Scalars['JSON']>;
@@ -785,6 +792,25 @@ export type UpdateAddressInput = {
 export type Success = {
     __typename?: 'Success';
     success: Scalars['Boolean'];
+};
+
+export type ShippingMethodQuote = {
+    __typename?: 'ShippingMethodQuote';
+    id: Scalars['ID'];
+    price: Scalars['Int'];
+    priceWithTax: Scalars['Int'];
+    name: Scalars['String'];
+    description: Scalars['String'];
+    /** Any optional metadata returned by the ShippingCalculator in the ShippingCalculationResult */
+    metadata?: Maybe<Scalars['JSON']>;
+};
+
+export type PaymentMethodQuote = {
+    __typename?: 'PaymentMethodQuote';
+    id: Scalars['ID'];
+    code: Scalars['String'];
+    isEligible: Scalars['Boolean'];
+    eligibilityMessage?: Maybe<Scalars['String']>;
 };
 
 export type Country = Node & {
@@ -1237,6 +1263,19 @@ export type DateTimeCustomFieldConfig = CustomField & {
     step?: Maybe<Scalars['Int']>;
 };
 
+export type RelationCustomFieldConfig = CustomField & {
+    __typename?: 'RelationCustomFieldConfig';
+    name: Scalars['String'];
+    type: Scalars['String'];
+    list: Scalars['Boolean'];
+    label?: Maybe<Array<LocalizedString>>;
+    description?: Maybe<Array<LocalizedString>>;
+    readonly?: Maybe<Scalars['Boolean']>;
+    internal?: Maybe<Scalars['Boolean']>;
+    entity: Scalars['String'];
+    scalarFields: Array<Scalars['String']>;
+};
+
 export type LocalizedString = {
     __typename?: 'LocalizedString';
     languageCode: LanguageCode;
@@ -1249,7 +1288,8 @@ export type CustomFieldConfig =
     | IntCustomFieldConfig
     | FloatCustomFieldConfig
     | BooleanCustomFieldConfig
-    | DateTimeCustomFieldConfig;
+    | DateTimeCustomFieldConfig
+    | RelationCustomFieldConfig;
 
 export type CustomerGroup = Node & {
     __typename?: 'CustomerGroup';
@@ -1811,16 +1851,6 @@ export type OrderList = PaginatedList & {
     totalItems: Scalars['Int'];
 };
 
-export type ShippingMethodQuote = {
-    __typename?: 'ShippingMethodQuote';
-    id: Scalars['ID'];
-    price: Scalars['Int'];
-    priceWithTax: Scalars['Int'];
-    name: Scalars['String'];
-    description: Scalars['String'];
-    metadata?: Maybe<Scalars['JSON']>;
-};
-
 export type ShippingLine = {
     __typename?: 'ShippingLine';
     shippingMethod: ShippingMethod;
@@ -1881,6 +1911,10 @@ export type OrderLine = Node & {
     unitPrice: Scalars['Int'];
     /** The price of a single unit, including tax but excluding discounts */
     unitPriceWithTax: Scalars['Int'];
+    /** Non-zero if the unitPrice has changed since it was initially added to Order */
+    unitPriceChangeSinceAdded: Scalars['Int'];
+    /** Non-zero if the unitPriceWithTax has changed since it was initially added to Order */
+    unitPriceWithTaxChangeSinceAdded: Scalars['Int'];
     /**
      * The price of a single unit including discounts, excluding tax.
      *
@@ -2157,6 +2191,7 @@ export type ProductVariant = Node & {
     /** @deprecated price now always excludes tax */
     priceIncludesTax: Scalars['Boolean'];
     priceWithTax: Scalars['Int'];
+    stockLevel: Scalars['String'];
     taxRateApplied: TaxRate;
     taxCategory: TaxCategory;
     options: Array<ProductOption>;
@@ -2243,12 +2278,27 @@ export type ShippingMethodList = PaginatedList & {
     totalItems: Scalars['Int'];
 };
 
+export type Tag = Node & {
+    __typename?: 'Tag';
+    id: Scalars['ID'];
+    createdAt: Scalars['DateTime'];
+    updatedAt: Scalars['DateTime'];
+    value: Scalars['String'];
+};
+
+export type TagList = PaginatedList & {
+    __typename?: 'TagList';
+    items: Array<Tag>;
+    totalItems: Scalars['Int'];
+};
+
 export type TaxCategory = Node & {
     __typename?: 'TaxCategory';
     id: Scalars['ID'];
     createdAt: Scalars['DateTime'];
     updatedAt: Scalars['DateTime'];
     name: Scalars['String'];
+    isDefault: Scalars['Boolean'];
 };
 
 export type TaxRate = Node & {
@@ -2307,7 +2357,7 @@ export type OrderModificationError = ErrorResult & {
     message: Scalars['String'];
 };
 
-/** Returned when attempting to set a ShippingMethod for which the order is not eligible */
+/** Returned when attempting to set a ShippingMethod for which the Order is not eligible */
 export type IneligibleShippingMethodError = ErrorResult & {
     __typename?: 'IneligibleShippingMethodError';
     errorCode: ErrorCode;
@@ -2319,6 +2369,14 @@ export type OrderPaymentStateError = ErrorResult & {
     __typename?: 'OrderPaymentStateError';
     errorCode: ErrorCode;
     message: Scalars['String'];
+};
+
+/** Returned when attempting to add a Payment using a PaymentMethod for which the Order is not eligible. */
+export type IneligiblePaymentMethodError = ErrorResult & {
+    __typename?: 'IneligiblePaymentMethodError';
+    errorCode: ErrorCode;
+    message: Scalars['String'];
+    eligibilityCheckerMessage?: Maybe<Scalars['String']>;
 };
 
 /** Returned when a Payment fails due to an error. */
@@ -2516,6 +2574,7 @@ export type ApplyCouponCodeResult =
 export type AddPaymentToOrderResult =
     | Order
     | OrderPaymentStateError
+    | IneligiblePaymentMethodError
     | PaymentFailedError
     | PaymentDeclinedError
     | OrderStateTransitionError
@@ -2663,6 +2722,7 @@ export type ProductVariantFilterParameter = {
     currencyCode?: Maybe<StringOperators>;
     priceIncludesTax?: Maybe<BooleanOperators>;
     priceWithTax?: Maybe<NumberOperators>;
+    stockLevel?: Maybe<StringOperators>;
 };
 
 export type ProductVariantSortParameter = {
@@ -2674,6 +2734,7 @@ export type ProductVariantSortParameter = {
     name?: Maybe<SortOrder>;
     price?: Maybe<SortOrder>;
     priceWithTax?: Maybe<SortOrder>;
+    stockLevel?: Maybe<SortOrder>;
 };
 
 export type CustomerFilterParameter = {

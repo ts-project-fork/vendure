@@ -90,7 +90,15 @@ describe('Fulfillment process', () => {
 
     beforeAll(async () => {
         await server.init({
-            initialData,
+            initialData: {
+                ...initialData,
+                paymentMethods: [
+                    {
+                        name: testSuccessfulPaymentMethod.code,
+                        handler: { code: testSuccessfulPaymentMethod.code, arguments: [] },
+                    },
+                ],
+            },
             productsCsvPath: path.join(__dirname, 'fixtures/e2e-products-full.csv'),
             customerCount: 1,
         });
@@ -155,6 +163,11 @@ describe('Fulfillment process', () => {
     });
 
     describe('CustomFulfillmentProcess', () => {
+        it('is injectable', () => {
+            expect(initSpy).toHaveBeenCalled();
+            expect(initSpy.mock.calls[0][0]).toBe('default');
+        });
+
         it('replaced transition target', async () => {
             const { order } = await adminClient.query<
                 GetOrderFulfillments.Query,

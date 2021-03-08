@@ -22,7 +22,8 @@ import { mergeMap, take } from 'rxjs/operators';
     styleUrls: ['./tax-category-detail.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TaxCategoryDetailComponent extends BaseDetailComponent<TaxCategory.Fragment>
+export class TaxCategoryDetailComponent
+    extends BaseDetailComponent<TaxCategory.Fragment>
     implements OnInit, OnDestroy {
     taxCategory$: Observable<TaxCategory.Fragment>;
     detailForm: FormGroup;
@@ -42,7 +43,7 @@ export class TaxCategoryDetailComponent extends BaseDetailComponent<TaxCategory.
         super(route, router, serverConfigService, dataService);
         this.detailForm = this.formBuilder.group({
             name: ['', Validators.required],
-            taxRate: [0, Validators.required],
+            isDefault: false,
         });
     }
 
@@ -64,7 +65,7 @@ export class TaxCategoryDetailComponent extends BaseDetailComponent<TaxCategory.
             return;
         }
         const formValue = this.detailForm.value;
-        const input = { name: formValue.name } as CreateTaxCategoryInput;
+        const input = { name: formValue.name, isDefault: formValue.isDefault } as CreateTaxCategoryInput;
         this.dataService.settings.createTaxCategory(input).subscribe(
             data => {
                 this.notificationService.success(_('common.notify-create-success'), {
@@ -94,6 +95,7 @@ export class TaxCategoryDetailComponent extends BaseDetailComponent<TaxCategory.
                     const input = {
                         id: taxCategory.id,
                         name: formValue.name,
+                        isDefault: formValue.isDefault,
                     } as UpdateTaxCategoryInput;
                     return this.dataService.settings.updateTaxCategory(input);
                 }),
@@ -120,6 +122,7 @@ export class TaxCategoryDetailComponent extends BaseDetailComponent<TaxCategory.
     protected setFormValues(entity: TaxCategory.Fragment, languageCode: LanguageCode): void {
         this.detailForm.patchValue({
             name: entity.name,
+            isDefault: entity.isDefault,
         });
     }
 }

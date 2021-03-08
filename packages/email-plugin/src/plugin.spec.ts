@@ -9,7 +9,6 @@ import {
     Order,
     OrderStateTransitionEvent,
     PluginCommonModule,
-    ProcessContextModule,
     RequestContext,
     VendureEvent,
 } from '@vendure/core';
@@ -40,7 +39,6 @@ describe('EmailPlugin', () => {
                     type: 'sqljs',
                     retryAttempts: 0,
                 }),
-                ProcessContextModule.forRoot(),
                 PluginCommonModule,
                 EmailPlugin.init({
                     templatePath: path.join(__dirname, '../test-templates'),
@@ -60,7 +58,7 @@ describe('EmailPlugin', () => {
 
         const plugin = module.get(EmailPlugin);
         eventBus = module.get(EventBus);
-        await plugin.onVendureBootstrap();
+        await plugin.onApplicationBootstrap();
         return module;
     }
 

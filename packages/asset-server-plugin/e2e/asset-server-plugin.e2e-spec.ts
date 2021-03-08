@@ -170,8 +170,10 @@ describe('AssetServerPlugin', () => {
             const { deleteAsset } = await adminClient.query<DeleteAsset.Mutation, DeleteAsset.Variables>(
                 DELETE_ASSET,
                 {
-                    id: asset.id,
-                    force: true,
+                    input: {
+                        assetId: asset.id,
+                        force: true,
+                    },
                 },
             );
 
@@ -252,8 +254,8 @@ export const CREATE_ASSETS = gql`
 `;
 
 export const DELETE_ASSET = gql`
-    mutation DeleteAsset($id: ID!, $force: Boolean!) {
-        deleteAsset(id: $id, force: $force) {
+    mutation DeleteAsset($input: DeleteAssetInput!) {
+        deleteAsset(input: $input) {
             result
         }
     }

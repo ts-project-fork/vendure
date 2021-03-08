@@ -1,4 +1,5 @@
 import { NodeOptions } from '@elastic/elasticsearch';
+import { OnApplicationBootstrap } from '@nestjs/common';
 import {
     AssetEvent,
     CollectionModificationEvent,
@@ -7,7 +8,6 @@ import {
     ID,
     idsAreEqual,
     Logger,
-    OnVendureBootstrap,
     PluginCommonModule,
     ProductChannelEvent,
     ProductEvent,
@@ -196,6 +196,7 @@ import { ElasticsearchOptions, ElasticsearchRuntimeOptions, mergeWithDefaults } 
         ElasticsearchIndexService,
         ElasticsearchService,
         ElasticsearchHealthIndicator,
+        ElasticsearchIndexerController,
         { provide: ELASTIC_SEARCH_OPTIONS, useFactory: () => ElasticsearchPlugin.options },
     ],
     adminApiExtensions: { resolvers: [AdminElasticSearchResolver] },
@@ -213,9 +214,8 @@ import { ElasticsearchOptions, ElasticsearchRuntimeOptions, mergeWithDefaults } 
         // which looks like possibly a TS/definitions bug.
         schema: () => generateSchemaExtensions(ElasticsearchPlugin.options as any),
     },
-    workers: [ElasticsearchIndexerController],
 })
-export class ElasticsearchPlugin implements OnVendureBootstrap {
+export class ElasticsearchPlugin implements OnApplicationBootstrap {
     private static options: ElasticsearchRuntimeOptions;
 
     /** @internal */
@@ -236,7 +236,7 @@ export class ElasticsearchPlugin implements OnVendureBootstrap {
     }
 
     /** @internal */
-    async onVendureBootstrap(): Promise<void> {
+    async onApplicationBootstrap(): Promise<void> {
         const { host, port } = ElasticsearchPlugin.options;
         const nodeName = this.nodeName();
         try {
@@ -252,7 +252,6 @@ export class ElasticsearchPlugin implements OnVendureBootstrap {
         Logger.info(`Successfully connected to Elasticsearch instance at "${nodeName}"`, loggerCtx);
 
         await this.elasticsearchService.createIndicesIfNotExists();
-        this.elasticsearchIndexService.initJobQueue();
         this.healthCheckRegistryService.registerIndicatorFunction(() =>
             this.elasticsearchHealthIndicator.isHealthy(),
         );

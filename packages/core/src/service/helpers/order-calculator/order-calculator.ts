@@ -59,7 +59,7 @@ export class OrderCalculator {
                 order,
                 updatedOrderLine,
                 activeTaxZone,
-                this.createTaxRateGetter(activeTaxZone),
+                this.createTaxRateGetter(ctx, activeTaxZone),
             );
             updatedOrderLine.activeItems.forEach(item => updatedOrderItems.add(item));
         }
@@ -93,7 +93,7 @@ export class OrderCalculator {
      * Applies the correct TaxRate to each OrderItem in the order.
      */
     private async applyTaxes(ctx: RequestContext, order: Order, activeZone: Zone) {
-        const getTaxRate = this.createTaxRateGetter(activeZone);
+        const getTaxRate = this.createTaxRateGetter(ctx, activeZone);
         for (const line of order.lines) {
             await this.applyTaxesToOrderLine(ctx, order, line, activeZone, getTaxRate);
         }
@@ -108,9 +108,9 @@ export class OrderCalculator {
         order: Order,
         line: OrderLine,
         activeZone: Zone,
-        getTaxRate: (taxCategory: TaxCategory) => TaxRate,
+        getTaxRate: (taxCategory: TaxCategory) => Promise<TaxRate>,
     ) {
-        const applicableTaxRate = getTaxRate(line.taxCategory);
+        const applicableTaxRate = await getTaxRate(line.taxCategory);
         const { taxLineCalculationStrategy } = this.configService.taxOptions;
         for (const item of line.activeItems) {
             item.taxLines = await taxLineCalculationStrategy.calculate({
@@ -127,15 +127,18 @@ export class OrderCalculator {
      * Returns a memoized function for performing an efficient
      * lookup of the correct TaxRate for a given TaxCategory.
      */
-    private createTaxRateGetter(activeZone: Zone): (taxCategory: TaxCategory) => TaxRate {
+    private createTaxRateGetter(
+        ctx: RequestContext,
+        activeZone: Zone,
+    ): (taxCategory: TaxCategory) => Promise<TaxRate> {
         const taxRateCache = new Map<TaxCategory, TaxRate>();
 
-        return (taxCategory: TaxCategory): TaxRate => {
+        return async (taxCategory: TaxCategory): Promise<TaxRate> => {
             const cached = taxRateCache.get(taxCategory);
             if (cached) {
                 return cached;
             }
-            const rate = this.taxRateService.getApplicableTaxRate(activeZone, taxCategory);
+            const rate = await this.taxRateService.getApplicableTaxRate(ctx, activeZone, taxCategory);
             taxRateCache.set(taxCategory, rate);
             return rate;
         };
@@ -265,7 +268,20 @@ export class OrderCalculator {
         promotions: Promotion[],
     ): Promise<OrderItem[]> {
         const updatedItems = new Set<OrderItem>();
-        order.lines.forEach(line => line.clearAdjustments(AdjustmentType.DISTRIBUTED_ORDER_PROMOTION));
+        const orderHasDistributedPromotions = !!order.discounts.find(
+            adjustment => adjustment.type === AdjustmentType.DISTRIBUTED_ORDER_PROMOTION,
+        );
+        if (orderHasDistributedPromotions) {
+            // If the Order currently has any Order-level discounts applied, we need to
+            // mark all OrderItems in the Order as "updated", since one or more of those
+            // Order-level discounts may become invalid, which will require _all_ OrderItems
+            // to be saved.
+            order.lines.forEach(line => {
+                line.clearAdjustments(AdjustmentType.DISTRIBUTED_ORDER_PROMOTION);
+                line.items.forEach(item => updatedItems.add(item));
+            });
+        }
+
         this.calculateOrderTotals(order);
         const applicableOrderPromotions = await filterAsync(promotions, p => p.test(ctx, order));
         if (applicableOrderPromotions.length) {

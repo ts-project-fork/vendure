@@ -27,6 +27,7 @@ import { Product } from '../../entity/product/product.entity';
 import { EventBus } from '../../event-bus/event-bus';
 import { ProductVariantChannelEvent } from '../../event-bus/events/product-variant-channel-event';
 import { ProductVariantEvent } from '../../event-bus/events/product-variant-event';
+import { CustomFieldRelationService } from '../helpers/custom-field-relation/custom-field-relation.service';
 import { ListQueryBuilder } from '../helpers/list-query-builder/list-query-builder';
 import { TranslatableSaver } from '../helpers/translatable-saver/translatable-saver';
 import { samplesEach } from '../helpers/utils/samples-each';
@@ -60,6 +61,7 @@ export class ProductVariantService {
         private stockMovementService: StockMovementService,
         private channelService: ChannelService,
         private roleService: RoleService,
+        private customFieldRelationService: CustomFieldRelationService,
     ) {}
 
     async findAll(
@@ -76,8 +78,10 @@ export class ProductVariantService {
             })
             .getManyAndCount()
             .then(async ([variants, totalItems]) => {
-                const items = variants.map(variant =>
-                    translateDeep(this.applyChannelPriceAndTax(variant, ctx), ctx.languageCode),
+                const items = await Promise.all(
+                    variants.map(async variant =>
+                        translateDeep(await this.applyChannelPriceAndTax(variant, ctx), ctx.languageCode),
+                    ),
                 );
                 return {
                     items,
@@ -90,9 +94,9 @@ export class ProductVariantService {
         const relations = ['product', 'product.featuredAsset', 'taxCategory'];
         return this.connection
             .findOneInChannel(ctx, ProductVariant, productVariantId, ctx.channelId, { relations })
-            .then(result => {
+            .then(async result => {
                 if (result) {
-                    return translateDeep(this.applyChannelPriceAndTax(result, ctx), ctx.languageCode, [
+                    return translateDeep(await this.applyChannelPriceAndTax(result, ctx), ctx.languageCode, [
                         'product',
                     ]);
                 }
@@ -112,12 +116,14 @@ export class ProductVariantService {
                 ],
             })
             .then(variants => {
-                return variants.map(variant =>
-                    translateDeep(this.applyChannelPriceAndTax(variant, ctx), ctx.languageCode, [
-                        'options',
-                        'facetValues',
-                        ['facetValues', 'facet'],
-                    ]),
+                return Promise.all(
+                    variants.map(async variant =>
+                        translateDeep(await this.applyChannelPriceAndTax(variant, ctx), ctx.languageCode, [
+                            'options',
+                            'facetValues',
+                            ['facetValues', 'facet'],
+                        ]),
+                    ),
                 );
             });
     }
@@ -145,15 +151,18 @@ export class ProductVariantService {
             .andWhere('productVariant.deletedAt IS NULL')
             .orderBy('productVariant.id', 'ASC')
             .getMany()
-            .then(variants =>
-                variants.map(variant => {
-                    const variantWithPrices = this.applyChannelPriceAndTax(variant, ctx);
-                    return translateDeep(variantWithPrices, ctx.languageCode, [
-                        'options',
-                        'facetValues',
-                        ['facetValues', 'facet'],
-                    ]);
-                }),
+            .then(
+                async variants =>
+                    await Promise.all(
+                        variants.map(async variant => {
+                            const variantWithPrices = await this.applyChannelPriceAndTax(variant, ctx);
+                            return translateDeep(variantWithPrices, ctx.languageCode, [
+                                'options',
+                                'facetValues',
+                                ['facetValues', 'facet'],
+                            ]);
+                        }),
+                    ),
             );
     }
 
@@ -178,10 +187,12 @@ export class ProductVariantService {
         }
 
         return qb.getManyAndCount().then(async ([variants, totalItems]) => {
-            const items = variants.map(variant => {
-                const variantWithPrices = this.applyChannelPriceAndTax(variant, ctx);
-                return translateDeep(variantWithPrices, ctx.languageCode);
-            });
+            const items = await Promise.all(
+                variants.map(async variant => {
+                    const variantWithPrices = await this.applyChannelPriceAndTax(variant, ctx);
+                    return translateDeep(variantWithPrices, ctx.languageCode);
+                }),
+            );
             return {
                 items,
                 totalItems,
@@ -215,7 +226,7 @@ export class ProductVariantService {
     getFacetValuesForVariant(ctx: RequestContext, variantId: ID): Promise<Array<Translated<FacetValue>>> {
         return this.connection
             .findOneInChannel(ctx, ProductVariant, variantId, ctx.channelId, {
-                relations: ['facetValues', 'facetValues.facet'],
+                relations: ['facetValues', 'facetValues.facet', 'facetValues.channels'],
             })
             .then(variant =>
                 !variant ? [] : variant.facetValues.map(o => translateDeep(o, ctx.languageCode, ['facet'])),
@@ -238,6 +249,7 @@ export class ProductVariantService {
      * for purchase by Customers.
      */
     async getSaleableStockLevel(ctx: RequestContext, variant: ProductVariant): Promise<number> {
+        // TODO: Use caching (RequestContextCacheService) to reduce DB calls
         const { outOfStockThreshold, trackInventory } = await this.globalSettingsService.getSettings(ctx);
         const inventoryNotTracked =
             variant.trackInventory === GlobalFlag.FALSE ||
@@ -251,6 +263,17 @@ export class ProductVariantService {
             : variant.outOfStockThreshold;
 
         return variant.stockOnHand - variant.stockAllocated - effectiveOutOfStockThreshold;
+    }
+
+    /**
+     * @description
+     * Returns the stockLevel to display to the customer, as specified by the configured
+     * {@link StockDisplayStrategy}.
+     */
+    async getDisplayStockLevel(ctx: RequestContext, variant: ProductVariant): Promise<string> {
+        const { stockDisplayStrategy } = this.configService.catalogOptions;
+        const saleableStockLevel = await this.getSaleableStockLevel(ctx, variant);
+        return stockDisplayStrategy.getStockLevel(ctx, variant, saleableStockLevel);
     }
 
     /**
@@ -338,6 +361,7 @@ export class ProductVariantService {
                 taxCategoryId: input.taxCategoryId,
             },
         });
+        await this.customFieldRelationService.updateRelations(ctx, ProductVariant, input, createdVariant);
         await this.assetService.updateEntityAssets(ctx, createdVariant, input);
         if (input.stockOnHand != null && input.stockOnHand !== 0) {
             await this.stockMovementService.adjustProductVariantStock(
@@ -367,6 +391,7 @@ export class ProductVariantService {
     private async updateSingle(ctx: RequestContext, input: UpdateProductVariantInput): Promise<ID> {
         const existingVariant = await this.connection.getEntityOrThrow(ctx, ProductVariant, input.id, {
             channelId: ctx.channelId,
+            relations: ['facetValues', 'facetValues.channels'],
         });
         if (input.stockOnHand && input.stockOnHand < 0) {
             throw new UserInputError('error.stockonhand-cannot-be-negative');
@@ -388,10 +413,13 @@ export class ProductVariantService {
                     }
                 }
                 if (input.facetValueIds) {
-                    updatedVariant.facetValues = await this.facetValueService.findByIds(
-                        ctx,
-                        input.facetValueIds,
+                    const facetValuesInOtherChannels = existingVariant.facetValues.filter(fv =>
+                        fv.channels.every(channel => !idsAreEqual(channel.id, ctx.channelId)),
                     );
+                    updatedVariant.facetValues = [
+                        ...facetValuesInOtherChannels,
+                        ...(await this.facetValueService.findByIds(ctx, input.facetValueIds)),
+                    ];
                 }
                 if (input.stockOnHand != null) {
                     await this.stockMovementService.adjustProductVariantStock(
@@ -409,6 +437,7 @@ export class ProductVariantService {
                 taxCategoryId: input.taxCategoryId,
             },
         });
+        await this.customFieldRelationService.updateRelations(ctx, ProductVariant, input, existingVariant);
         if (input.price != null) {
             const variantPriceRepository = this.connection.getRepository(ctx, ProductVariantPrice);
             const variantPrice = await variantPriceRepository.findOne({
@@ -464,10 +493,13 @@ export class ProductVariantService {
     /**
      * Populates the `price` field with the price for the specified channel.
      */
-    applyChannelPriceAndTax(variant: ProductVariant, ctx: RequestContext): ProductVariant {
+    async applyChannelPriceAndTax(variant: ProductVariant, ctx: RequestContext): Promise<ProductVariant> {
         const channelPrice = variant.productVariantPrices.find(p => idsAreEqual(p.channelId, ctx.channelId));
         if (!channelPrice) {
-            throw new InternalServerError(`error.no-price-found-for-channel`);
+            throw new InternalServerError(`error.no-price-found-for-channel`, {
+                variantId: variant.id,
+                channel: ctx.channel.code,
+            });
         }
         const { taxZoneStrategy } = this.configService.taxOptions;
         const zones = this.zoneService.findAll(ctx);
@@ -475,13 +507,14 @@ export class ProductVariantService {
         if (!activeTaxZone) {
             throw new InternalServerError(`error.no-active-tax-zone`);
         }
-        const applicableTaxRate = this.taxRateService.getApplicableTaxRate(
+        const applicableTaxRate = await this.taxRateService.getApplicableTaxRate(
+            ctx,
             activeTaxZone,
             variant.taxCategory,
         );
 
         const { productVariantPriceCalculationStrategy } = this.configService.catalogOptions;
-        const { price, priceIncludesTax } = productVariantPriceCalculationStrategy.calculate({
+        const { price, priceIncludesTax } = await productVariantPriceCalculationStrategy.calculate({
             inputPrice: channelPrice.price,
             taxCategory: variant.taxCategory,
             activeTaxZone,
@@ -509,10 +542,10 @@ export class ProductVariantService {
         }
         const variants = await this.connection
             .getRepository(ctx, ProductVariant)
-            .findByIds(input.productVariantIds, { relations: ['taxCategory'] });
+            .findByIds(input.productVariantIds, { relations: ['taxCategory', 'assets'] });
         const priceFactor = input.priceFactor != null ? input.priceFactor : 1;
         for (const variant of variants) {
-            this.applyChannelPriceAndTax(variant, ctx);
+            await this.applyChannelPriceAndTax(variant, ctx);
             await this.channelService.assignToChannels(ctx, Product, variant.productId, [input.channelId]);
             await this.channelService.assignToChannels(ctx, ProductVariant, variant.id, [input.channelId]);
             await this.createOrUpdateProductVariantPrice(
@@ -521,6 +554,8 @@ export class ProductVariantService {
                 variant.price * priceFactor,
                 input.channelId,
             );
+            const assetIds = variant.assets?.map(a => a.assetId) || [];
+            await this.assetService.assignToChannel(ctx, { channelId: input.channelId, assetIds });
         }
         const result = await this.findByIds(
             ctx,
@@ -655,7 +690,7 @@ export class ProductVariantService {
             taxCategory = await this.connection.getEntityOrThrow(ctx, TaxCategory, taxCategoryId);
         } else {
             const taxCategories = await this.taxCategoryService.findAll(ctx);
-            taxCategory = taxCategories[0];
+            taxCategory = taxCategories.find(t => t.isDefault === true) ?? taxCategories[0];
         }
         if (!taxCategory) {
             // there is no TaxCategory set up, so create a default

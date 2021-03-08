@@ -1,4 +1,3 @@
-import { Transport } from '@nestjs/microservices';
 import { ADMIN_API_PATH, SHOP_API_PATH } from '@vendure/common/lib/shared-constants';
 import {
     DefaultAssetNamingStrategy,
@@ -59,12 +58,5 @@ export const testConfig: Required<VendureConfig> = mergeConfig(defaultConfig, {
         assetNamingStrategy: new DefaultAssetNamingStrategy(),
         assetStorageStrategy: new TestingAssetStorageStrategy(),
         assetPreviewStrategy: new TestingAssetPreviewStrategy(),
-    },
-    workerOptions: {
-        runInMainProcess: true,
-        transport: Transport.TCP,
-        options: {
-            port: 3051,
-        },
     },
 });

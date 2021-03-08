@@ -3,17 +3,29 @@ import { AdminUiPlugin } from '@vendure/admin-ui-plugin';
 import { AssetServerPlugin } from '@vendure/asset-server-plugin';
 import { ADMIN_API_PATH, API_PORT, SHOP_API_PATH } from '@vendure/common/lib/shared-constants';
 import {
+    Asset,
     DefaultJobQueuePlugin,
     DefaultLogger,
     DefaultSearchPlugin,
+    dummyPaymentHandler,
     examplePaymentHandler,
+    LanguageCode,
     LogLevel,
     manualFulfillmentHandler,
+    PaymentMethodEligibilityChecker,
     VendureConfig,
 } from '@vendure/core';
+import { ElasticsearchPlugin } from '@vendure/elasticsearch-plugin';
 import { defaultEmailHandlers, EmailPlugin } from '@vendure/email-plugin';
 import path from 'path';
 import { ConnectionOptions } from 'typeorm';
+
+const testPaymentChecker = new PaymentMethodEligibilityChecker({
+    code: 'test-checker',
+    description: [{ languageCode: LanguageCode.en, value: 'test checker' }],
+    args: {},
+    check: (ctx, order) => true,
+});
 
 /**
  * Config settings used during development
@@ -50,9 +62,12 @@ export const devConfig: VendureConfig = {
         ...getDbConfig(),
     },
     paymentOptions: {
-        paymentMethodHandlers: [examplePaymentHandler],
+        paymentMethodEligibilityCheckers: [testPaymentChecker],
+        paymentMethodHandlers: [dummyPaymentHandler],
     },
-    customFields: {},
+    customFields: {
+        /*Asset: [{ name: 'description', type: 'string' }],*/
+    },
     logger: new DefaultLogger({ level: LogLevel.Info }),
     importExportOptions: {
         importAssetsDir: path.join(__dirname, 'import-assets'),
@@ -64,7 +79,6 @@ export const devConfig: VendureConfig = {
         AssetServerPlugin.init({
             route: 'assets',
             assetUploadDir: path.join(__dirname, 'assets'),
-            port: 5002,
         }),
         DefaultSearchPlugin,
         DefaultJobQueuePlugin,
@@ -74,10 +88,10 @@ export const devConfig: VendureConfig = {
         // }),
         EmailPlugin.init({
             devMode: true,
+            route: 'mailbox',
             handlers: defaultEmailHandlers,
             templatePath: path.join(__dirname, '../email-plugin/templates'),
             outputPath: path.join(__dirname, 'test-emails'),
-            mailboxPort: 5003,
             globalTemplateVars: {
                 verifyEmailAddressUrl: 'http://localhost:4201/verify',
                 passwordResetUrl: 'http://localhost:4201/reset-password',
@@ -85,6 +99,7 @@ export const devConfig: VendureConfig = {
             },
         }),
         AdminUiPlugin.init({
+            route: 'admin',
             port: 5001,
         }),
     ],

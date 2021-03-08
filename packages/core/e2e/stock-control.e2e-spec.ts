@@ -30,6 +30,7 @@ import {
     AddItemToOrder,
     AddPaymentToOrder,
     ErrorCode,
+    GetProductStockLevel,
     PaymentInput,
     SetShippingAddress,
     TestOrderFragmentFragment,
@@ -49,6 +50,7 @@ import {
 import {
     ADD_ITEM_TO_ORDER,
     ADD_PAYMENT,
+    GET_PRODUCT_WITH_STOCK_LEVEL,
     SET_SHIPPING_ADDRESS,
     TRANSITION_TO_STATE,
 } from './graphql/shop-definitions';
@@ -82,7 +84,19 @@ describe('Stock control', () => {
 
     beforeAll(async () => {
         await server.init({
-            initialData,
+            initialData: {
+                ...initialData,
+                paymentMethods: [
+                    {
+                        name: testSuccessfulPaymentMethod.code,
+                        handler: { code: testSuccessfulPaymentMethod.code, arguments: [] },
+                    },
+                    {
+                        name: twoStagePaymentMethod.code,
+                        handler: { code: twoStagePaymentMethod.code, arguments: [] },
+                    },
+                ],
+            },
             productsCsvPath: path.join(__dirname, 'fixtures/e2e-products-stock-control.csv'),
             customerCount: 3,
         });
@@ -455,6 +469,21 @@ describe('Stock control', () => {
             );
 
             await shopClient.asUserWithCredentials('trevor_donnelly96@hotmail.com', 'test');
+        });
+
+        it('stockLevel uses DefaultStockDisplayStrategy', async () => {
+            const { product } = await shopClient.query<
+                GetProductStockLevel.Query,
+                GetProductStockLevel.Variables
+            >(GET_PRODUCT_WITH_STOCK_LEVEL, {
+                id: 'T_2',
+            });
+
+            expect(product?.variants.map(v => v.stockLevel)).toEqual([
+                'OUT_OF_STOCK',
+                'IN_STOCK',
+                'IN_STOCK',
+            ]);
         });
 
         it('does not add an empty OrderLine if zero saleable stock', async () => {

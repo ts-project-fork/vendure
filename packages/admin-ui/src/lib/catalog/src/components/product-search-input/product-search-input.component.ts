@@ -68,14 +68,6 @@ export class ProductSearchInputComponent {
         );
     };
 
-    groupByFacet = (item: SearchProducts.FacetValues | { label: string }) => {
-        if (this.isFacetValueItem(item)) {
-            return item.facetValue.facet.name;
-        } else {
-            return '';
-        }
-    };
-
     onSelectChange(selectedItems: Array<SearchProducts.FacetValues | { label: string }>) {
         if (!Array.isArray(selectedItems)) {
             selectedItems = [selectedItems];

@@ -6,8 +6,10 @@ import { devConfig } from './dev-config';
 // fix race condition when modifying DB
 devConfig.dbConnectionOptions = { ...devConfig.dbConnectionOptions, synchronize: false };
 
-bootstrapWorker(devConfig).catch(err => {
-    // tslint:disable-next-line
-    console.log(err);
-    process.exit(1);
-});
+bootstrapWorker(devConfig)
+    .then(worker => worker.startJobQueue())
+    .catch(err => {
+        // tslint:disable-next-line
+        console.log(err);
+        process.exit(1);
+    });

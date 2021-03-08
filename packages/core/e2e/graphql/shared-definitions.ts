@@ -14,6 +14,7 @@ import {
     GLOBAL_SETTINGS_FRAGMENT,
     ORDER_FRAGMENT,
     ORDER_WITH_LINES_FRAGMENT,
+    PAYMENT_FRAGMENT,
     PRODUCT_OPTION_GROUP_FRAGMENT,
     PRODUCT_VARIANT_FRAGMENT,
     PRODUCT_WITH_OPTIONS_FRAGMENT,
@@ -374,6 +375,10 @@ export const UPDATE_ASSET = gql`
         updateAsset(input: $input) {
             ...Asset
             ... on Asset {
+                tags {
+                    id
+                    value
+                }
                 focalPoint {
                     x
                     y
@@ -385,8 +390,8 @@ export const UPDATE_ASSET = gql`
 `;
 
 export const DELETE_ASSET = gql`
-    mutation DeleteAsset($id: ID!, $force: Boolean) {
-        deleteAsset(id: $id, force: $force) {
+    mutation DeleteAsset($input: DeleteAssetInput!) {
+        deleteAsset(input: $input) {
             result
             message
         }
@@ -788,11 +793,7 @@ export const SETTLE_PAYMENT = gql`
             }
         }
     }
-    fragment Payment on Payment {
-        id
-        state
-        metadata
-    }
+    ${PAYMENT_FRAGMENT}
 `;
 
 export const GET_ORDER_HISTORY = gql`
@@ -821,4 +822,61 @@ export const UPDATE_SHIPPING_METHOD = gql`
         }
     }
     ${SHIPPING_METHOD_FRAGMENT}
+`;
+
+export const GET_ASSET = gql`
+    query GetAsset($id: ID!) {
+        asset(id: $id) {
+            ...Asset
+            width
+            height
+        }
+    }
+    ${ASSET_FRAGMENT}
+`;
+
+export const GET_ASSET_FRAGMENT_FIRST = gql`
+    fragment AssetFragFirst on Asset {
+        id
+        preview
+    }
+
+    query GetAssetFragmentFirst($id: ID!) {
+        asset(id: $id) {
+            ...AssetFragFirst
+        }
+    }
+`;
+
+export const CREATE_ASSETS = gql`
+    mutation CreateAssets($input: [CreateAssetInput!]!) {
+        createAssets(input: $input) {
+            ...Asset
+            ... on Asset {
+                focalPoint {
+                    x
+                    y
+                }
+                tags {
+                    id
+                    value
+                }
+            }
+            ... on MimeTypeError {
+                message
+                fileName
+                mimeType
+            }
+        }
+    }
+    ${ASSET_FRAGMENT}
+`;
+
+export const DELETE_SHIPPING_METHOD = gql`
+    mutation DeleteShippingMethod($id: ID!) {
+        deleteShippingMethod(id: $id) {
+            result
+            message
+        }
+    }
 `;
