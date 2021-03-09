@@ -1,6 +1,6 @@
 ---
 title: "Announcing Vendure v1.0.0-beta"
-date: 2021-03-08T11:00:00
+date: 2021-03-09T13:00:00
 draft: false
 author: "Michael Bromley"
 images: 
@@ -11,20 +11,19 @@ It is with great excitement that we announce the release of Vendure v1.0.0-beta.
 
 <!--more-->
 
-{{< vimeo id="496041481" >}}
+{{< vimeo id="521373866" >}}
 
 Video sections:
 
-* [Intro](https://vimeo.com/496041481)
-* [Tax handling](https://vimeo.com/496041481#t=0m21s)
-* [Dashboard widgets](https://vimeo.com/496041481#t=2m57s)
-* [Order modification](https://vimeo.com/496041481#t=5m21s)
-* [Migration](https://vimeo.com/496041481#t=8m9s)
-* [Roadmap to v1.0](https://vimeo.com/496041481#t=12m25s)
+* [Worker improvements](https://vimeo.com/521373866#t=0m31s)
+* [Custom field relations](https://vimeo.com/521373866#t=4m19s)
+* [Payment improvements](https://vimeo.com/521373866#t=6m18s)
+* [Migration](https://vimeo.com/521373866#t=7m43s)
+* [Roadmap to final release](https://vimeo.com/521373866#t=8m20s)
 
 ## From here to v1.0
 
-The `-beta.1` suffix means that this is not _yet_ the final, stable Vendure v1.0.0 release. There are still outstanding issues to be handled, and rough edges to smooth out. However, there are no more breaking changes planned between now and v1.0.0. Over the coming weeks we'll be releasing a series of `-beta.n` releases which will include these changes. Just before the final release we'll release a `-rc.1` ("release candidate 1"), and if all is well then that version will then become the final v1.0.0 release.
+The `-beta.1` suffix means that this is not _yet_ the final, stable Vendure v1.0.0 release. There are still some outstanding issues to be handled, and rough edges to smooth out. However, there are no more breaking changes planned between now and v1.0.0. Over the coming weeks we'll be releasing a series of `-beta.n` releases which will include these changes. Just before the final release we'll release a `-rc.1` ("release candidate 1"), and if all is well then that version will then become the final v1.0.0 release.
 
 Future releases during this phase will not be accompanied by blog posts, just changelog entries and announcement via the usual channels (Slack, Twitter).
 
@@ -42,18 +41,18 @@ With that established, let's take a look at some of the new features in this rel
 
 ## Major improvement of worker architecture
 
-Vendure uses the concept of a "worker" process to process long-running tasks in the background (a pattern known as a job queue or task queue). Previously, the worker process was implemented as a NestJS microservice. Jobs would be added to a queue in the database, and then the server would typically send those jobs to the worker over the network via TCP using the `WorkerService`. This arrangement had a number of issues:
+Vendure uses the concept of a "worker" process to process long-running tasks in the background (a pattern known as a _job queue_ or _task queue_). Previously, the worker process was implemented as a [NestJS microservice](https://docs.nestjs.com/microservices/basics). Jobs would be added to a queue in the database, and then the server would typically send those jobs to the worker over the network via TCP using the `WorkerService`. This arrangement had a number of issues:
 
 * The need for network connectivity between the server and worker made deployment more complex
 * It was difficult to successfully scale the worker to multiple instances
 * The TCP connection was not robust, leading to the possibility of job loss
 * Creating plugins which made use of the worker was overly complex and verbose
 
-This release introduces a more efficient and robust architecture which addresses issues that some users ran into when attempting to scale worker tasks to handle heavy loads. We have switched from a NestJS microservice-based architecture to a much simpler pure job queue solution, which essentially combines the roles of the `JobQueueService` with the `WorkerService`, so that any job added to a JobQueue will by default run on the worker.
+This release introduces a more efficient and stable architecture which addresses these issues. We have switched from the NestJS microservice-based architecture to a much simpler pure job queue solution, which essentially combines the roles of the `JobQueueService` with the `WorkerService`, so that any job added to a JobQueue will by default run on the worker.
 
 The advantages of this approach are:
 
-* It is now trivial to spin up as many parallel worker processes as you need
+* It is now trivial to spin up as many parallel worker processes as you need (see the [demo in the release video](https://vimeo.com/521373866#t=2m24s))
 * Less plugin code is needed to run tasks on the worker
 * More performant job queue strategies can result in much reduced load on the database (see chart below)
 * The internals are simpler - no network layer is needed to run the worker, meaning we no longer have the overhead of sending & receiving network requests to send jobs to the worker
@@ -135,10 +134,13 @@ The [DefaultStockDisplayStrategy]({{< relref "default-stock-display-strategy" >}
 * The new [ChangedPriceHandlingStrategy]({{< relref "changed-price-handling-strategy" >}}) allows you full control over how you handle changes to the price of items which are already in an active Order.
 * The new [OrderPlacedStrategy]({{< relref "order-placed-strategy" >}}) enables even more control over custom Order processes, allowing you to define the exact point at which the Order is considered "placed" (i.e. Customer has checked out, Order no longer active).
 * The TaxCategory entity has a new `isDefault` property, which is used to decide on the default TaxCategory to use when creating new ProductVariants.
-* The Admin API has a new `productVariants` query, allowing you to directly query for a list of ProductVariants.
 * Assets can now be tagged. Tags are simple text labels which can be used to classify and group Assets. For example, if you are creating Customer avatars, you can tag them
 with an "avatar" tag, which allows you to easily filter for only avatar assets.
 * Performance when dealing with very large orders (OrderLines with quantity of > 100) has been massively improved ([#705](https://github.com/vendure-ecommerce/vendure/pull/705))
+* All major dependencies (NestJS, TypeORM, Graphql-js, Apollo Server, Angular) have been updated to the latest versions
+
+
+**📖 See all changes in the [v1.0.0-beta.1 Changelog](https://github.com/vendure-ecommerce/vendure/blob/419761b88c01503208e3b0e779d2a0925926c62b/CHANGELOG.md#100-beta1-2021-03-09)**
 
 ## Contributor acknowledgements
 
@@ -156,8 +158,6 @@ The following community members contributed to this release. Thank you for your 
 
 
 ---
-
-**📖 See all changes in the [v1.0.0-beta.1 Changelog](TODO)**
 
 ## BREAKING CHANGES / Migration Guide
 
