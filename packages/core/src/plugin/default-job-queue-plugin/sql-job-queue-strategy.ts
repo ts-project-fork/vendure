@@ -48,9 +48,11 @@ export class SqlJobQueueStrategy extends PollingJobQueueStrategy implements Insp
         }
         const connection = this.connection;
         const connectionType = this.connection.options.type;
+        const isSQLite =
+            connectionType === 'sqlite' || connectionType === 'sqljs' || connectionType === 'better-sqlite3';
 
         return new Promise(async (resolve, reject) => {
-            if (connectionType === 'sqlite' || connectionType === 'sqljs') {
+            if (isSQLite) {
                 // SQLite driver does not support concurrent transactions. See https://github.com/typeorm/typeorm/issues/1884
                 const result = await this.getNextAndSetAsRunning(connection.manager, queueName);
                 resolve(result);
@@ -76,13 +78,14 @@ export class SqlJobQueueStrategy extends PollingJobQueueStrategy implements Insp
             .createQueryBuilder('record')
             .where('record.queueName = :queueName', { queueName })
             .andWhere(
-                new Brackets((qb) => {
+                new Brackets(qb => {
                     qb.where('record.state = :pending', {
                         pending: JobState.PENDING,
                     }).orWhere('record.state = :retrying', { retrying: JobState.RETRYING });
                 }),
             )
             .orderBy('record.createdAt', 'ASC')
+            .setLock('pessimistic_write')
             .getOne();
         if (record) {
             const job = this.fromRecord(record);
@@ -132,7 +135,7 @@ export class SqlJobQueueStrategy extends PollingJobQueueStrategy implements Insp
         return this.connection
             .getRepository(JobRecord)
             .findByIds(ids)
-            .then((records) => records.map(this.fromRecord));
+            .then(records => records.map(this.fromRecord));
     }
 
     async removeSettledJobs(queueNames: string[] = [], olderThan?: Date) {

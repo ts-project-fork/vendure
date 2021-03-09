@@ -43,7 +43,7 @@ program
     })
     .option(
         '--log-level <logLevel>',
-        "Log level, either 'silent', 'info', or 'verbose'",
+        `Log level, either 'silent', 'info', or 'verbose'`,
         /^(silent|info|verbose)$/i,
         'silent',
     )
@@ -203,7 +203,7 @@ async function createApp(
                     const { populate } = await import(
                         path.join(root, 'node_modules/@vendure/core/cli/populate')
                     );
-                    const { bootstrap, DefaultLogger, LogLevel } = await import(
+                    const { bootstrap, DefaultLogger, LogLevel, JobQueueService } = await import(
                         path.join(root, 'node_modules/@vendure/core/dist/index')
                     );
                     const { config } = await import(ctx.configFile);
@@ -217,9 +217,10 @@ async function createApp(
                             : logLevel === 'verbose'
                             ? LogLevel.Verbose
                             : LogLevel.Info;
+
                     const bootstrapFn = async () => {
                         await checkDbConnection(config.dbConnectionOptions, root);
-                        return bootstrap({
+                        const _app = await bootstrap({
                             ...config,
                             apiOptions: {
                                 ...(config.apiOptions ?? {}),
@@ -231,24 +232,20 @@ async function createApp(
                                 synchronize: true,
                             },
                             logger: new DefaultLogger({ level: vendureLogLevel }),
-                            workerOptions: {
-                                runInMainProcess: true,
-                            },
                             importExportOptions: {
                                 importAssetsDir: path.join(assetsDir, 'images'),
                             },
                         });
+                        await _app.get(JobQueueService).start();
+                        return _app;
                     };
-                    let app: any;
-                    if (populateProducts) {
-                        app = await populate(
-                            bootstrapFn,
-                            initialDataPath,
-                            path.join(assetsDir, 'products.csv'),
-                        );
-                    } else {
-                        app = await populate(bootstrapFn, initialDataPath);
-                    }
+
+                    const app = await populate(
+                        bootstrapFn,
+                        initialDataPath,
+                        populateProducts ? path.join(assetsDir, 'products.csv') : undefined,
+                    );
+
                     // Pause to ensure the worker jobs have time to complete.
                     if (isCi) {
                         console.log('[CI] Pausing before close...');

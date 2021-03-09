@@ -22,11 +22,8 @@ describe('AssetServerPlugin', () => {
 
     const { server, adminClient, shopClient } = createTestEnvironment(
         mergeConfig(testConfig, {
-            port: 5050,
-            workerOptions: {
-                options: {
-                    port: 5055,
-                },
+            apiOptions: {
+                port: 5050,
             },
             logger: new DefaultLogger({ level: LogLevel.Info }),
             plugins: [
