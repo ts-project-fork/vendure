@@ -235,7 +235,7 @@ The following community members contributed to this release. Thank you for your 
 
 ### Update EmailPlugin, AssetServerPlugin config
  
- The EmailPlugin & AssetServerPlugin now run directly as part of the main Vendure server process. This means that you do not need to specify a `port` for them to run on:
+ The EmailPlugin & AssetServerPlugin now run directly as part of the main Vendure server process. This means that you do not need to specify a `port` for them to run on. These plugins also require an explicit `route` to be specified:
  
  ```diff
   plugins: [
@@ -255,6 +255,10 @@ The following community members contributed to this release. Thank you for your 
       globalTemplateVars: {
         // ...
       },
+    }),
+    AdminUiPlugin.init({
+      port: 3002,
+ +    route: 'admin',
     }),
   ],
  ```
