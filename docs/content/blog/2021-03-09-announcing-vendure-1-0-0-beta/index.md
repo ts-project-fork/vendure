@@ -172,8 +172,8 @@ The following community members contributed to this release. Thank you for your 
 1. Create a complete backup of your database schema and data.
 2. Generate a migration script as described in the [Migrations guide]({{< relref "migrations" >}}).
 3. You must now modify the generated migration script in accordance with the examples given in this [Vendure 1.0.0-beta.1 Migration gist](https://gist.github.com/michaelbromley/5edc01ab07b3f2101cc1f0cb3b60e598). This will involve moving around the generated queries and adding calls to the provided utility functions which will deal with the more complex data migrations.
-    * [Example migration script](https://gist.github.com/michaelbromley/08cba2ad0101a2901516b6199fa84a00#file-example-mysql-migration-ts) (if using postgres, the syntax will be slightly different, but the sequence of commands should match this example)
-    * [Migration utility functions](https://gist.github.com/michaelbromley/08cba2ad0101a2901516b6199fa84a00#file-migration-utils-ts) (copy the contents of this file into the parent directory of the `/migrations` folder)
+    * [Example migration script](https://gist.github.com/michaelbromley/5edc01ab07b3f2101cc1f0cb3b60e598#file-example-mysql-migration-ts) (if using postgres, the syntax will be slightly different, but the sequence of commands should match this example)
+    * [Migration utility functions](https://gist.github.com/michaelbromley/5edc01ab07b3f2101cc1f0cb3b60e598#file-migration-utils-ts) (copy the contents of this file into the parent directory of the `/migrations` folder)
 4. **IMPORTANT** test the migration first on data you are prepared to lose to ensure that it works as expected. Do not run on production data without testing. For production data, **make a full backup first!**
 
 
