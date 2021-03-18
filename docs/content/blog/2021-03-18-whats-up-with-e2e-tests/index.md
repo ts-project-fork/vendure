@@ -30,15 +30,15 @@ These trade-offs are distilled into the concept of the "Testing Pyramid":
 
 The pyramid shape implies you should concentrate your testing strategy on unit tests, and write progressively fewer higher-level tests. 
 
-**So why bother at all with e2e tests at all if they are so much trouble?** 
+**So why bother with e2e tests at all if they are so much trouble?** 
 
 Kent C. Dodds, in his article [Static vs Unit vs Integration vs E2E Testing for Frontend Apps](https://kentcdodds.com/blog/unit-vs-integration-vs-e2e-tests) (in which he describes an alternate shape to the pyramid, which he terms the "testing trophy"), uses the term **"confidence coefficient"**, which he defines thus:
 
 > As you move up the testing trophy, you're increasing what I call the "confidence coefficient." This is the relative confidence that each test can get you at that level. You can imagine that above the trophy is manual testing. That would get you really great confidence from those tests, but the tests would be really expensive and slow.
 
-So we are trading time, effort, and frustration for **increased confidence**.
+So we are trading time and effort (and money and frustration) for **increased confidence**.
 
-An e2e test can pick up a subtle bug introduced by a change to the API middleware layer interacting with some aspect of the database schema definition (actual example!). Any testing lower on the pyramid has no chance of catching something like that.
+Actual example: An e2e test can pick up a subtle bug introduced by a change to the API middleware layer interacting with some aspect of the database schema definition. Any testing lower on the pyramid has no chance of catching something like that.
 
 Martin Fowler writes about this pyramid and the reasoning behind it in his [TestPyramid article](https://martinfowler.com/bliki/TestPyramid.html). In that article, he also includes this small footnote (my emphasis added):
 
@@ -48,9 +48,9 @@ This footnote, hidden way down at the very end of the page, suggests another pos
 
 ## UI vs API e2e testing
 
-Most articles which discuss the trade-offs of unit vs e2e testing do so in the context of apps with a UI part. Vendure, however, has no UI. It is a headless server where the interface is a GraphQL API. 
+Most articles which discuss the trade-offs of unit vs e2e testing do so in the context of apps with a UI. Vendure, however, has no UI; it is a headless server where the interface is a GraphQL API. 
 
-Indeed, with the current shift towards API-driven architectures (think JAM Stack, headless commerce), this will be an increasingly common scenario. So how does this change the calculus of our testing strategy?
+Indeed, with the current shift towards API-driven architectures (think [Jamstack](https://jamstack.org/), [headless commerce](https://headlesscommerce.org/)), this will be an increasingly common scenario. So how does this change the calculus of our testing strategy?
 
 1. **Stability:** A UI is not static. It can change for reasons of aesthetics, marketing concerns, refactoring, changing underlying libraries etc. Even when it remains visually identical, the structure of the HTML can be changed markedly. All of these changes can result in failing e2e tests, making the tests time-consuming to maintain.
 
@@ -138,9 +138,9 @@ We can even do things like define a spy function in the test script, pass it to 
 
 ## Conclusion
 
-This all means that, in Vendure, we can have our testing cake _and_ eat it. Unit & integration tests are still useful - we still have ~500 of those. But I tend to limit them to pure, algorithmically-complex functions - data parsing and transformation, testing financial calculation logic etc.
+This all means that, in Vendure, we can have our testing cake _and_ eat it. Unit & integration tests are still useful - we have ~500 of those. But I tend to limit them to pure, algorithmically-complex functions - data parsing and transformation, testing financial calculation logic etc.
 
-Depending on your application, a different mix of tests may be more appropriate. But I hope that I've demonstrated here that, at least in testing APIs, e2e tests can be successfully brought _down the testing pyramid_.
+Depending on your application, a different mix of tests may be more appropriate. But I hope that I've demonstrated here that, at least in testing APIs, e2e tests can be successfully brought _down the testing pyramid_. You can **boost your confidence coefficient** without increasing your costs.
 
 If you're interested to see how all of this looks in practice, I recorded a screencast (35 min) in which I demonstrate a TDD approach to e2e testing, implementing a couple of new features in a Vendure plugin:
 
