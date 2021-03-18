@@ -1,13 +1,14 @@
 import { Args, Parent, ResolveField, Resolver } from '@nestjs/graphql';
-import { StockMovementListOptions } from '@vendure/common/lib/generated-types';
+import { CurrencyCode, StockMovementListOptions } from '@vendure/common/lib/generated-types';
 import { DEFAULT_CHANNEL_CODE } from '@vendure/common/lib/shared-constants';
 import { PaginatedList } from '@vendure/common/lib/shared-types';
 
 import { Translated } from '../../../common/types/locale-types';
 import { idsAreEqual } from '../../../common/utils';
-import { Asset, Channel, FacetValue, Product, ProductOption } from '../../../entity';
+import { Asset, Channel, FacetValue, Product, ProductOption, TaxRate } from '../../../entity';
 import { ProductVariant } from '../../../entity/product-variant/product-variant.entity';
 import { StockMovement } from '../../../entity/stock-movement/stock-movement.entity';
+import { LocaleStringHydrator } from '../../../service/helpers/locale-string-hydrator/locale-string-hydrator';
 import { AssetService } from '../../../service/services/asset.service';
 import { ProductVariantService } from '../../../service/services/product-variant.service';
 import { StockMovementService } from '../../../service/services/stock-movement.service';
@@ -18,7 +19,45 @@ import { Ctx } from '../../decorators/request-context.decorator';
 
 @Resolver('ProductVariant')
 export class ProductVariantEntityResolver {
-    constructor(private productVariantService: ProductVariantService, private assetService: AssetService) {}
+    constructor(
+        private productVariantService: ProductVariantService,
+        private assetService: AssetService,
+        private localeStringHydrator: LocaleStringHydrator,
+    ) {}
+
+    @ResolveField()
+    async name(@Ctx() ctx: RequestContext, @Parent() productVariant: ProductVariant): Promise<string> {
+        return this.localeStringHydrator.hydrateLocaleStringField(ctx, productVariant, 'name');
+    }
+
+    @ResolveField()
+    async price(@Ctx() ctx: RequestContext, @Parent() productVariant: ProductVariant): Promise<number> {
+        return this.productVariantService.hydratePriceFields(ctx, productVariant, 'price');
+    }
+
+    @ResolveField()
+    async priceWithTax(
+        @Ctx() ctx: RequestContext,
+        @Parent() productVariant: ProductVariant,
+    ): Promise<number> {
+        return this.productVariantService.hydratePriceFields(ctx, productVariant, 'priceWithTax');
+    }
+
+    @ResolveField()
+    async currencyCode(
+        @Ctx() ctx: RequestContext,
+        @Parent() productVariant: ProductVariant,
+    ): Promise<CurrencyCode> {
+        return this.productVariantService.hydratePriceFields(ctx, productVariant, 'currencyCode');
+    }
+
+    @ResolveField()
+    async taxRateApplied(
+        @Ctx() ctx: RequestContext,
+        @Parent() productVariant: ProductVariant,
+    ): Promise<TaxRate> {
+        return this.productVariantService.hydratePriceFields(ctx, productVariant, 'taxRateApplied');
+    }
 
     @ResolveField()
     async product(
