@@ -1601,7 +1601,7 @@ export type Order = Node & {
    * @deprecated Use `discounts` instead
    */
   adjustments: Array<Adjustment>;
-  discounts: Array<Adjustment>;
+  discounts: Array<Discount>;
   /** An array of all coupon codes applied to the Order */
   couponCodes: Array<Scalars['String']>;
   /** Promotions applied to the order. Only gets populated after the payment process has completed. */
@@ -3004,6 +3004,7 @@ export type ShippingMethodQuote = {
   id: Scalars['ID'];
   price: Scalars['Int'];
   priceWithTax: Scalars['Int'];
+  code: Scalars['String'];
   name: Scalars['String'];
   description: Scalars['String'];
   /** Any optional metadata returned by the ShippingCalculator in the ShippingCalculationResult */
@@ -3949,7 +3950,16 @@ export type ShippingLine = {
   priceWithTax: Scalars['Int'];
   discountedPrice: Scalars['Int'];
   discountedPriceWithTax: Scalars['Int'];
-  discounts: Array<Adjustment>;
+  discounts: Array<Discount>;
+};
+
+export type Discount = {
+  __typename?: 'Discount';
+  adjustmentSource: Scalars['String'];
+  type: AdjustmentType;
+  description: Scalars['String'];
+  amount: Scalars['Int'];
+  amountWithTax: Scalars['Int'];
 };
 
 export type OrderItem = Node & {
@@ -4050,7 +4060,7 @@ export type OrderLine = Node & {
   lineTax: Scalars['Int'];
   /** @deprecated Use `discounts` instead */
   adjustments: Array<Adjustment>;
-  discounts: Array<Adjustment>;
+  discounts: Array<Discount>;
   taxLines: Array<TaxLine>;
   order: Order;
   customFields?: Maybe<Scalars['JSON']>;
@@ -5684,9 +5694,9 @@ export type GetFacetWithValuesQuery = { facet?: Maybe<(
     & FacetWithValuesFragment
   )> };
 
-export type AdjustmentFragment = (
-  { __typename?: 'Adjustment' }
-  & Pick<Adjustment, 'adjustmentSource' | 'amount' | 'description' | 'type'>
+export type DiscountFragment = (
+  { __typename?: 'Discount' }
+  & Pick<Discount, 'adjustmentSource' | 'amount' | 'amountWithTax' | 'description' | 'type'>
 );
 
 export type RefundFragment = (
@@ -5733,8 +5743,8 @@ export type OrderLineFragment = (
     { __typename?: 'ProductVariant' }
     & Pick<ProductVariant, 'id' | 'name' | 'sku' | 'trackInventory' | 'stockOnHand'>
   ), discounts: Array<(
-    { __typename?: 'Adjustment' }
-    & AdjustmentFragment
+    { __typename?: 'Discount' }
+    & DiscountFragment
   )>, items: Array<(
     { __typename?: 'OrderItem' }
     & Pick<OrderItem, 'id' | 'unitPrice' | 'unitPriceWithTax' | 'taxRate' | 'refundId' | 'cancelled'>
@@ -5758,8 +5768,8 @@ export type OrderDetailFragment = (
     { __typename?: 'Surcharge' }
     & Pick<Surcharge, 'id' | 'sku' | 'description' | 'price' | 'priceWithTax' | 'taxRate'>
   )>, discounts: Array<(
-    { __typename?: 'Adjustment' }
-    & AdjustmentFragment
+    { __typename?: 'Discount' }
+    & DiscountFragment
   )>, promotions: Array<(
     { __typename?: 'Promotion' }
     & Pick<Promotion, 'id' | 'couponCode'>
@@ -8234,7 +8244,7 @@ export type TestEligibleShippingMethodsQueryVariables = Exact<{
 
 export type TestEligibleShippingMethodsQuery = { testEligibleShippingMethods: Array<(
     { __typename?: 'ShippingMethodQuote' }
-    & Pick<ShippingMethodQuote, 'id' | 'name' | 'description' | 'price' | 'priceWithTax' | 'metadata'>
+    & Pick<ShippingMethodQuote, 'id' | 'name' | 'code' | 'description' | 'price' | 'priceWithTax' | 'metadata'>
   )> };
 
 type DiscriminateUnion<T, U> = T extends U ? T : never;
@@ -8682,8 +8692,8 @@ export namespace GetFacetWithValues {
   export type Facet = (NonNullable<GetFacetWithValuesQuery['facet']>);
 }
 
-export namespace Adjustment {
-  export type Fragment = AdjustmentFragment;
+export namespace Discount {
+  export type Fragment = DiscountFragment;
 }
 
 export namespace Refund {
